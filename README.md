@@ -160,7 +160,7 @@ Example Output
 Supervised learning uses labeled data where the model learns from input-output pairs.
 Unsupervised learning uses unlabeled data and identifies patterns or structures in the data.
 
-Sources:
+**Sources:**
 [Document 1, Page 4]
 [Document 2, Page 7]
 Project Structure
@@ -181,24 +181,24 @@ ml-course-document-rag/
 
 ## Getting Started
 
-1. Clone the Repository
+**1. Clone the Repository**
 git clone https://github.com/Shreevikas-BJ/ml-course-document-rag.git
 cd ml-course-document-rag
 
-3. Create a Virtual Environment
+**2. Create a Virtual Environment**
 python -m venv venv
 
 Activate the environment:
 
-Windows
+**Windows**
 
 venv\Scripts\activate
 
-macOS / Linux
+**macOS / Linux**
 
 source venv/bin/activate
 
-3. Install Dependencies
+**3. Install Dependencies**
 pip install -r requirements.txt
 
 ## Environment Variables
@@ -216,23 +216,23 @@ streamlit run app/app.py
 If your main Streamlit file has a different name, update the command accordingly.
 
 ## Core Design Principles
-1. Document-Grounded Answers
+**1. Document-Grounded Answers**
 
 The system only answers from uploaded PDFs and does not rely on general model knowledge.
 
-2. Similarity Threshold Gating
+**2. Similarity Threshold Gating**
 
 Before generating an answer, the system checks whether the retrieved chunks are relevant enough.
 
-3. Citation-First Output
+**3. Citation-First Output**
 
 Answers include source references so users can verify where the information came from.
 
-4. Refusal Over Hallucination
+**4. Refusal Over Hallucination**
 
 If the system cannot find enough evidence, it refuses to answer instead of making assumptions.
 
-5. Future Council-Based Reasoning
+**5. Future Council-Based Reasoning**
 
 The project is designed to support a future fallback mode where multiple LLMs can evaluate and critique responses before a final answer is selected.
 
@@ -256,7 +256,7 @@ Planned flow:
           ↓
     Final Response with Confidence Notes
 
-Potential models:
+**Potential models:**
 
 OpenAI
 Gemini
@@ -294,7 +294,7 @@ Technical documentation support
 
 ## Author
 
-Shreevikas Bangalore Jagadish
+**Shreevikas Bangalore Jagadish**
 Graduate Student, Information Technology and Management
 Illinois Institute of Technology
 
