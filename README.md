@@ -164,20 +164,21 @@ Unsupervised learning uses unlabeled data and identifies patterns or structures 
 [Document 1, Page 4]
 [Document 2, Page 7]
 Project Structure
-ml-course-document-rag/
-│
-├── app/
-│   └── Streamlit application files
-│
-├── data/
-│   └── Sample or uploaded document data
-│
-├── src/
-│   └── Core RAG pipeline logic
-│
-├── requirements.txt
-├── runtime.txt
-└── README.md
+
+            ml-course-document-rag/
+            │
+            ├── app/
+            │   └── Streamlit application files
+            │
+            ├── data/
+            │   └── Sample or uploaded document data
+            │
+            ├── src/
+            │   └── Core RAG pipeline logic
+            │
+            ├── requirements.txt
+            ├── runtime.txt
+            └── README.md
 
 ## Getting Started
 
