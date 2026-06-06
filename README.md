@@ -1,308 +1,250 @@
-# ML Course Document RAG
+# AI/ML Knowledge RAG Assistant
 
-A trust-first Retrieval-Augmented Generation system that answers questions strictly from uploaded ML course documents using similarity gating, citation-based responses, and refusal handling.
+A portfolio-ready AI and machine learning RAG system with a Vercel-hosted Next.js frontend, a Render-hosted FastAPI backend, local RTX 5060 embedding generation, FAISS vector search, strict retrieval grounding, and citation-based answers.
 
-This project is designed for learning environments where answers must stay grounded in the provided course material instead of relying on general LLM knowledge.
+Streamlit was removed so the frontend can be deployed as a modern web app and the RAG service can run as a clean Python API.
 
----
+## Production Architecture
 
-## Overview
+```mermaid
+flowchart LR
+  User["User"] --> Vercel["Next.js frontend on Vercel"]
+  Vercel --> Render["FastAPI backend on Render"]
+  Render --> FAISS["backend/data/index/faiss.index"]
+  Render --> Metadata["backend/data/index/metadata.json"]
+  Render --> LLM["Groq / OpenAI / Ollama-compatible LLM"]
 
-Large Language Models are powerful, but they can sometimes produce answers that are outside the syllabus, unsupported by uploaded material, or difficult to verify.
+  subgraph LocalOnly["Local offline indexing"]
+    RTX["RTX 5060"] --> Embed["sentence-transformers embeddings"]
+    PDFs["Official/open PDFs"] --> Extract["PyMuPDF extraction"]
+    Extract --> Chunk["Chunking"]
+    Chunk --> Embed
+    Embed --> FAISS
+    Chunk --> Metadata
+  end
+```
 
-This project solves that problem by building a strict document-grounded RAG system for machine learning course content. Users can upload course PDFs, ask questions, and receive answers only when the system finds enough relevant evidence in the uploaded documents.
-
-If the retrieved context is not strong enough, the system refuses to answer instead of guessing.
-
-> Not enough information in the uploaded documents.
-
-The goal is to make AI-assisted learning more reliable, auditable, and aligned with instructor-provided material.
-
----
-
-## Problem Statement
-
-Generic LLMs often create problems in academic and enterprise knowledge settings:
-
-- They may answer using general internet knowledge instead of provided documents
-- They can introduce concepts not covered in the course material
-- They may hallucinate facts while sounding confident
-- They often do not provide clear source traceability
-- They can make it difficult for students or instructors to verify correctness
-
-This project addresses those issues by enforcing a source-grounded answer pipeline.
-
----
-
-## Key Features
-
-- Upload and process ML course PDFs
-- Extract and chunk document text
-- Generate embeddings for semantic similarity search
-- Retrieve the most relevant document chunks for a user question
-- Apply similarity threshold gating before answering
-- Generate answers only from retrieved document context
-- Provide citation-based responses for traceability
-- Refuse to answer when uploaded documents do not contain enough information
-- Designed for future multi-LLM council fallback and judge-based evaluation
-
----
+The RTX 5060 is used only to download PDFs and build the FAISS artifacts locally. The deployed production app does not depend on the laptop being online.
 
 ## Tech Stack
 
-| Category | Tools / Libraries |
-|---|---|
-| Language | Python |
-| App Framework | Streamlit |
-| LLM / API | OpenAI |
-| RAG Pipeline | LangChain-style retrieval workflow |
-| Vector Search | FAISS / Vector similarity search |
-| Document Processing | PDF text extraction |
-| Embeddings | OpenAI Embeddings |
-| Environment | pip, virtual environment |
-| Deployment Ready | Render-compatible runtime setup |
+- Frontend: Next.js App Router, React, Vercel
+- Backend: FastAPI, Uvicorn, Render
+- Retrieval: FAISS `IndexFlatIP`, normalized sentence-transformer embeddings
+- Embeddings: `BAAI/bge-base-en-v1.5`
+- Local indexing: PyTorch CUDA on RTX 5060 when available, CPU fallback otherwise
+- Generation: Groq by default, with OpenAI and Ollama-compatible options
 
----
+## Repository Layout
 
-## System Workflow
+```text
+frontend/
+  app/
+  components/
+backend/
+  main.py
+  rag/
+  scripts/
+  data/
+    raw_pdfs/      # PDFs ignored, rebuilt locally
+    processed/     # extracted/chunked intermediates ignored
+    index/         # committed deployable FAISS artifacts
+docs/
+render.yaml
+requirements.txt
+.env.example
+```
 
+## Retrieval Settings
 
-    User Uploads PDF Documents
-        ↓
-    PDF Text Extraction
-        ↓
-    Text Chunking
-        ↓
-    Embedding Generation
-        ↓
-    Vector Store Creation
-        ↓
-    User Asks a Question
-        ↓
-    Similarity Search
-        ↓
-    Threshold Gate
-        ↓
-    Answer with Citations OR Refusal
+- `TOP_K=3`
+- `SIMILARITY_THRESHOLD=0.6`
+- `EMBEDDING_MODEL=BAAI/bge-base-en-v1.5`
+- `RAG_CHUNK_SIZE_TOKENS=1000`
+- `RAG_CHUNK_OVERLAP_TOKENS=200`
 
-## Architecture
+The backend retrieves the top 3 chunks and answers only if at least one chunk has similarity `>= 0.6`. Otherwise it returns:
 
-                ┌──────────────────────┐
-                │   Uploaded PDFs       │
-                └──────────┬───────────┘
-                           │
-                           ▼
-                ┌──────────────────────┐
-                │  Text Extraction      │
-                └──────────┬───────────┘
-                           │
-                           ▼
-                ┌──────────────────────┐
-                │  Chunking Pipeline    │
-                └──────────┬───────────┘
-                           │
-                           ▼
-                ┌──────────────────────┐
-                │ Embedding Generation  │
-                └──────────┬───────────┘
-                           │
-                           ▼
-                ┌──────────────────────┐
-                │ Vector Store / FAISS  │
-                └──────────┬───────────┘
-                           │
-                           ▼
-                ┌──────────────────────┐
-                │ Similarity Retrieval  │
-                └──────────┬───────────┘
-                           │
-              ┌────────────┴────────────┐
-              ▼                         ▼
-     Enough Relevant Context       Low Similarity Score
-              │                         │
-              ▼                         ▼
-     Answer with Citations       Refuse to Answer
+```text
+Not enough information in the indexed AI/ML documents to answer confidently.
+```
 
-## Why Strict RAG?
+## Local Backend Setup
 
-This project intentionally avoids answering when the uploaded documents do not support the question.
-
-Most chatbot systems try to answer everything. That can be risky in education because students may receive convincing but unsupported explanations.
-
-This project follows a stricter principle:
-
-No retrieved evidence = no answer.
-
-This makes the system useful for:
-
-Course-specific learning assistants
-Academic document Q&A
-Internal training material search
-Enterprise knowledge bases
-Research document assistants
-Compliance-sensitive AI applications
-Example Use Case
-Uploaded Documents
-Machine Learning lecture PDFs
-Course notes
-Assignment reference material
-Textbook chapters
-User Question
-What is the difference between supervised and unsupervised learning?
-System Behavior
-
-If the concept exists in the uploaded course documents, the system answers using the retrieved context and includes citations.
-
-If the concept is not found with enough confidence, the system responds:
-
-Not enough information in the uploaded documents.
-Example Output
-Supervised learning uses labeled data where the model learns from input-output pairs.
-Unsupervised learning uses unlabeled data and identifies patterns or structures in the data.
-
-**Sources:**
-[Document 1, Page 4]
-[Document 2, Page 7]
-Project Structure
-
-            ml-course-document-rag/
-            │
-            ├── app/
-            │   └── Streamlit application files
-            │
-            ├── data/
-            │   └── Sample or uploaded document data
-            │
-            ├── src/
-            │   └── Core RAG pipeline logic
-            │
-            ├── requirements.txt
-            ├── runtime.txt
-            └── README.md
-
-## Getting Started
-
-**1. Clone the Repository**
-git clone https://github.com/Shreevikas-BJ/ml-course-document-rag.git
-cd ml-course-document-rag
-
-**2. Create a Virtual Environment**
-python -m venv venv
-
-Activate the environment:
-
-**Windows**
-
-venv\Scripts\activate
-
-**macOS / Linux**
-
-source venv/bin/activate
-
-**3. Install Dependencies**
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
+```
 
-## Environment Variables
+For local testing without a hosted LLM key, set:
 
-Create a .env file in the project root and add your API key:
+```text
+LLM_PROVIDER=none
+```
 
-OPENAI_API_KEY=your_openai_api_key_here
+For production-style generation, use:
 
-Do not commit your .env file to GitHub.
+```text
+LLM_PROVIDER=groq
+GROQ_API_KEY=<your key>
+GROQ_MODEL=llama-3.1-8b-instant
+```
 
-## Run the Application
+## Build Index Locally With RTX 5060
 
-streamlit run app/app.py
+```powershell
+python backend/scripts/download_sources.py
+python backend/scripts/build_index.py
+```
 
-If your main Streamlit file has a different name, update the command accordingly.
+This downloads the official/open-access PDFs from the source manifest, extracts page text, chunks documents, embeds locally with CUDA if available, normalizes vectors, and writes:
 
-## Core Design Principles
-**1. Document-Grounded Answers**
+```text
+backend/data/index/faiss.index
+backend/data/index/metadata.json
+backend/data/index/index_manifest.json
+```
 
-The system only answers from uploaded PDFs and does not rely on general model knowledge.
+The current index artifacts are small enough for GitHub and are committed for the simple Render deployment path. Raw PDFs and processed intermediates stay ignored because they are larger and rebuildable.
 
-**2. Similarity Threshold Gating**
+If artifacts ever become too large for GitHub, upload them to external storage or a Render persistent disk and set:
 
-Before generating an answer, the system checks whether the retrieved chunks are relevant enough.
+```text
+INDEX_ARTIFACT_URL=<download URL for faiss.index>
+METADATA_ARTIFACT_URL=<download URL for metadata.json>
+```
 
-**3. Citation-First Output**
+The backend will download missing artifacts at startup when those URLs are configured.
 
-Answers include source references so users can verify where the information came from.
+## Run Backend Locally
 
-**4. Refusal Over Hallucination**
+```powershell
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-If the system cannot find enough evidence, it refuses to answer instead of making assumptions.
+Endpoints:
 
-**5. Future Council-Based Reasoning**
+- `GET /health`
+- `GET /ready`
+- `GET /sources`
+- `POST /ask`
 
-The project is designed to support a future fallback mode where multiple LLMs can evaluate and critique responses before a final answer is selected.
+`/health` returns backend status, `index_loaded`, `total_chunks`, `embedding_model`, `top_k`, and `similarity_threshold`. `/ready` returns 200 only when the FAISS index and metadata are loadable.
 
-## Phase 2 Roadmap: LLM Council Fallback
+## Render Backend Deployment
 
-The next planned version introduces a controlled fallback mechanism inspired by a multi-model evaluation approach.
+This repo includes [render.yaml](render.yaml) for a Render web service.
 
-When strict RAG cannot answer a question, the system can optionally route the query to multiple LLMs for reasoning and comparison.
+1. Push the repo to GitHub.
+2. In Render, create a Blueprint or Web Service connected to this repo.
+3. Use the included `render.yaml`, or configure manually:
+   - Runtime: Python
+   - Build command: `pip install -r requirements.txt`
+   - Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+4. Add environment variables:
+   - `LLM_PROVIDER=groq`
+   - `GROQ_API_KEY=<your Groq key>`
+   - `GROQ_MODEL=llama-3.1-8b-instant`
+   - `EMBEDDING_MODEL=BAAI/bge-base-en-v1.5`
+   - `TOP_K=3`
+   - `SIMILARITY_THRESHOLD=0.6`
+   - `ALLOWED_ORIGINS=https://your-vercel-app.vercel.app`
+5. Deploy.
+6. Test:
+   - `https://your-render-backend.onrender.com/health`
+   - `https://your-render-backend.onrender.com/ready`
+   - `https://your-render-backend.onrender.com/sources`
 
-Planned flow:
+Render runs question embeddings on CPU unless you choose a GPU-capable host. It does not need your local RTX 5060 or local laptop after the FAISS artifacts are deployed.
 
-    Strict RAG Fails
-          ↓
-    Send Query to Multiple LLMs
-          ↓
-    Each LLM Generates an Answer
-          ↓
-    Models Critique and Score Responses
-          ↓
-    Chairman LLM Selects Best Final Answer
-          ↓
-    Final Response with Confidence Notes
+## Frontend Setup
 
-**Potential models:**
+```powershell
+cd frontend
+npm install
+Copy-Item .env.local.example .env.local
+npm run dev
+```
 
-OpenAI
-Gemini
-Grok
-Ollama / Local LLMs
+`frontend/.env.local.example` contains:
 
-This fallback would be clearly separated from strict RAG mode so users know whether the answer came from uploaded documents or general reasoning.
+```text
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+## Vercel Frontend Deployment
+
+1. Import this GitHub repo in Vercel.
+2. Set project root to `frontend`.
+3. Add environment variable:
+   - `NEXT_PUBLIC_API_BASE_URL=https://your-render-backend.onrender.com`
+4. Deploy.
+5. Test the full question-answer flow from the Vercel URL.
+
+Do not hardcode localhost in production. The frontend reads the backend URL from `NEXT_PUBLIC_API_BASE_URL`.
+
+## Tests
+
+Backend checks:
+
+```powershell
+python -m compileall backend
+python backend/scripts/test_retrieval.py
+```
+
+Production API smoke test:
+
+```powershell
+python backend/scripts/test_production_api.py --api-base-url https://your-render-backend.onrender.com
+```
+
+Frontend checks when npm is available:
+
+```powershell
+cd frontend
+npm install
+npm run build
+```
+
+## Source Manifest
+
+The source list is documented in [docs/SOURCE_MANIFEST.md](docs/SOURCE_MANIFEST.md), and `backend/data/raw_pdfs/source_manifest.json` is generated by the downloader. The project uses official, legal, and open-access sources only.
+
+## Example Questions
+
+- What is overfitting?
+- How does attention work in transformers?
+- What does the NIST AI RMF say about measuring AI risk?
+- What are common RAG failure modes?
+- Who won yesterday's NBA game?
+
+The NBA question should refuse because it is outside the indexed AI/ML documents.
+
+## Troubleshooting
+
+If `/ready` returns 503:
+
+```text
+FAISS index not found. Build the index locally and deploy/copy backend/data/index/faiss.index and metadata.json.
+```
+
+Rebuild locally and make sure `backend/data/index/faiss.index` and `backend/data/index/metadata.json` are present in the deployed backend.
+
+If Groq generation fails, verify `LLM_PROVIDER=groq`, `GROQ_API_KEY`, and `GROQ_MODEL`.
+
+If the frontend cannot reach the backend, check:
+
+```text
+NEXT_PUBLIC_API_BASE_URL=https://your-render-backend.onrender.com
+ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
+```
 
 ## Future Improvements
 
-Add page-level PDF citation extraction
-Add support for DOCX, PPTX, and TXT files
-Store document embeddings persistently
-Add user authentication
-Add multi-document filtering by course, topic, or module
-Add evaluation metrics for retrieval quality
-Add hallucination checks using a judge model
-Add local embedding model support
-Add Docker deployment
-Add hosted demo using Streamlit Cloud or Render
-Implement Phase 2 LLM Council fallback
-
-## Business and Academic Value
-
-This project demonstrates how RAG systems can be designed for trust-sensitive environments. Instead of building a general chatbot, it focuses on grounding, verification, and controlled response behavior.
-
-This is especially useful in domains where correctness matters, such as:
-
-Education
-Enterprise knowledge management
-Internal policy search
-Research assistance
-Legal and compliance workflows
-Technical documentation support
-
-## Author
-
-**Shreevikas Bangalore Jagadish**
-Graduate Student, Information Technology and Management
-Illinois Institute of Technology
-
-GitHub: Shreevikas-BJ
-LinkedIn: shreevikasbj
-Portfolio: datascienceportfol.io/shreevikasbj
-
-## Repository
-
-https://github.com/Shreevikas-BJ/ml-course-document-rag
+- Add a reranker for stronger citation ordering.
+- Add streamed answer generation.
+- Add category/source filters.
+- Add a managed artifact store for larger indexes.
+- Add Docker images for backend deployment portability.

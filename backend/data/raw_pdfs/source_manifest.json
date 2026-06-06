@@ -1,0 +1,156 @@
+[
+  {
+    "title": "CS229 Machine Learning Notes",
+    "authors_or_organization": "Stanford University CS229",
+    "year": "2022",
+    "url": "https://cs229.stanford.edu/main_notes.pdf",
+    "local_filename": "stanford-cs229-main-notes.pdf",
+    "license_or_access_note": "Official Stanford course notes, publicly accessible for course use.",
+    "category": "Machine Learning fundamentals",
+    "sha256": "05035ceb8a7214fcdc40f2ce14cdbb8189d8da5c56da5c5fead3d0597c0f70ba",
+    "bytes": 3401557
+  },
+  {
+    "title": "Dive into Deep Learning",
+    "authors_or_organization": "Aston Zhang, Zachary C. Lipton, Mu Li, Alexander J. Smola",
+    "year": "2024",
+    "url": "https://d2l.ai/d2l-en.pdf",
+    "local_filename": "dive-into-deep-learning.pdf",
+    "license_or_access_note": "Official open-source book PDF from d2l.ai.",
+    "category": "Deep Learning",
+    "sha256": "b3129f44c4a26b534176bb0f83d85e1ed26a6cdf93ebebacb20104eab2d6bc00",
+    "bytes": 44685994
+  },
+  {
+    "title": "Attention Is All You Need",
+    "authors_or_organization": "Ashish Vaswani et al.",
+    "year": "2017",
+    "url": "https://arxiv.org/pdf/1706.03762",
+    "local_filename": "attention-is-all-you-need.pdf",
+    "license_or_access_note": "arXiv open-access preprint.",
+    "category": "Modern AI / LLMs / Generative AI",
+    "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+    "bytes": 2215244
+  },
+  {
+    "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+    "authors_or_organization": "Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova",
+    "year": "2018",
+    "url": "https://arxiv.org/pdf/1810.04805",
+    "local_filename": "bert.pdf",
+    "license_or_access_note": "arXiv open-access preprint.",
+    "category": "Modern AI / LLMs / Generative AI",
+    "sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e",
+    "bytes": 775166
+  },
+  {
+    "title": "Language Models are Few-Shot Learners",
+    "authors_or_organization": "Tom B. Brown et al.",
+    "year": "2020",
+    "url": "https://arxiv.org/pdf/2005.14165",
+    "local_filename": "gpt3-few-shot-learners.pdf",
+    "license_or_access_note": "arXiv open-access preprint.",
+    "category": "Modern AI / LLMs / Generative AI",
+    "sha256": "97fd272f1fdfc18677462d0292f5fbf26ca86b4d1b485c2dba03269b643a0e83",
+    "bytes": 6768044
+  },
+  {
+    "title": "Llama 2: Open Foundation and Fine-Tuned Chat Models",
+    "authors_or_organization": "Hugo Touvron et al.",
+    "year": "2023",
+    "url": "https://arxiv.org/pdf/2307.09288",
+    "local_filename": "llama-2-technical-report.pdf",
+    "license_or_access_note": "arXiv open-access technical report.",
+    "category": "Modern AI / LLMs / Generative AI",
+    "sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91",
+    "bytes": 13661300
+  },
+  {
+    "title": "Retrieval-Augmented Generation for Large Language Models: A Survey",
+    "authors_or_organization": "Yunfan Gao et al.",
+    "year": "2023",
+    "url": "https://arxiv.org/pdf/2312.10997",
+    "local_filename": "rag-for-llms-survey.pdf",
+    "license_or_access_note": "arXiv open-access survey.",
+    "category": "RAG and AI agents",
+    "sha256": "396a0fadeb4cd40f5c8ccc36b73a0815f6cb4d7f6bfa53b6c48c1f9aba7c7e02",
+    "bytes": 1662567
+  },
+  {
+    "title": "A Survey on RAG Meeting LLMs: Towards Retrieval-Augmented Large Language Models",
+    "authors_or_organization": "Wenqi Fan, Yujuan Ding, Liangbo Ning, Shijie Wang, Hengyun Li, Dawei Yin, Tat-Seng Chua, Qing Li",
+    "year": "2024",
+    "url": "https://arxiv.org/pdf/2405.06211",
+    "local_filename": "rag-meeting-llms-survey.pdf",
+    "license_or_access_note": "arXiv open-access survey.",
+    "category": "RAG and AI agents",
+    "sha256": "d5d9068d62f975f75ea82ea7abac040ad902a5249a0d075e9a3540319071f178",
+    "bytes": 2205763
+  },
+  {
+    "title": "A Survey of Graph Retrieval-Augmented Generation for Customized Large Language Models",
+    "authors_or_organization": "Qinggang Zhang, Shengyuan Chen, Yuanchen Bei, Zheng Yuan, Huachi Zhou, Zijin Hong, Hao Chen, Yilin Xiao, Chuang Zhou, Junnan Dong, Yi Chang, Xiao Huang",
+    "year": "2025",
+    "url": "https://arxiv.org/pdf/2501.13958",
+    "local_filename": "graph-rag-survey.pdf",
+    "license_or_access_note": "arXiv open-access survey.",
+    "category": "RAG and AI agents",
+    "sha256": "f3875a5ede83c9816de8c79ec5d2bb2469d3c37319d664ed393c295dfa6ec7ad",
+    "bytes": 1544553
+  },
+  {
+    "title": "The Rise and Potential of Large Language Model Based Agents: A Survey",
+    "authors_or_organization": "Zhiheng Xi et al.",
+    "year": "2023",
+    "url": "https://arxiv.org/pdf/2309.07864",
+    "local_filename": "llm-agents-survey.pdf",
+    "license_or_access_note": "arXiv open-access survey.",
+    "category": "RAG and AI agents",
+    "sha256": "5e3b2357ff942e1a0e084ae4af3327011a651cf1f155d108065c70af369e24ac",
+    "bytes": 6832174
+  },
+  {
+    "title": "Artificial Intelligence Risk Management Framework (AI RMF 1.0)",
+    "authors_or_organization": "National Institute of Standards and Technology",
+    "year": "2023",
+    "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
+    "local_filename": "nist-ai-rmf-1-0.pdf",
+    "license_or_access_note": "Official NIST publication, publicly accessible.",
+    "category": "Responsible AI / Safety / Governance",
+    "sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1",
+    "bytes": 1946127
+  },
+  {
+    "title": "AI RMF Generative AI Profile",
+    "authors_or_organization": "National Institute of Standards and Technology",
+    "year": "2024",
+    "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+    "local_filename": "nist-ai-rmf-generative-ai-profile.pdf",
+    "license_or_access_note": "Official NIST publication, publicly accessible.",
+    "category": "Responsible AI / Safety / Governance",
+    "sha256": "6e73620ab6b64e90ef2c04bf0e0d6246185a2f4b1b13cab0df494496cff89b6a",
+    "bytes": 1174643
+  },
+  {
+    "title": "OWASP Top 10 for LLM Applications 2025",
+    "authors_or_organization": "OWASP Foundation",
+    "year": "2025",
+    "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/assets/PDF/OWASP-Top-10-for-LLMs-v2025.pdf",
+    "local_filename": "owasp-top-10-llm-applications-2025.pdf",
+    "license_or_access_note": "Official OWASP project PDF, publicly accessible.",
+    "category": "Responsible AI / Safety / Governance",
+    "sha256": "d8596f2c6b3384081574d392619ee3e9065c4f86e5b1fed1bb56be78de2ce382",
+    "bytes": 10716216
+  },
+  {
+    "title": "AI Index Report 2025",
+    "authors_or_organization": "Stanford Institute for Human-Centered Artificial Intelligence",
+    "year": "2025",
+    "url": "https://hai.stanford.edu/assets/files/hai_ai_index_report_2025.pdf",
+    "local_filename": "stanford-ai-index-2025.pdf",
+    "license_or_access_note": "Official Stanford HAI AI Index report PDF, publicly accessible.",
+    "category": "Responsible AI / Safety / Governance",
+    "sha256": "eef7a13bf536a20dc29a95943c3202942fa00ed5d1030c06eabce9c31e9da07a",
+    "bytes": 30264659
+  }
+]
