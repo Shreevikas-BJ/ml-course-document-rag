@@ -16,12 +16,12 @@
     "stanford-cs229-main-notes.pdf": "05035ceb8a7214fcdc40f2ce14cdbb8189d8da5c56da5c5fead3d0597c0f70ba"
   },
   "chunks_hash": "70a812c9013d3eee527840b5e8088965402117383b7252f3dab36b1d1ae295f4",
-  "embedding_model": "BAAI/bge-base-en-v1.5",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "embedding_batch_size": 32,
   "chunk_size_tokens": 1000,
   "chunk_overlap_tokens": 200,
   "top_k": 3,
   "similarity_threshold": 0.6,
   "vector_count": 2500,
-  "embedding_dimension": 768
+  "embedding_dimension": 384
 }

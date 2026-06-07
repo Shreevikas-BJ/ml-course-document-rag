@@ -12,6 +12,7 @@ from backend.rag.config import (
     OPENAI_API_KEY,
     OPENAI_MODEL,
     REFUSAL_MESSAGE,
+    MAX_CONTEXT_CHARS,
 )
 
 SYSTEM_PROMPT = f"""You are a strict AI/ML course document assistant.
@@ -41,18 +42,28 @@ def citation_label(chunk: dict[str, Any], number: int) -> str:
 
 def format_context(chunks: list[dict[str, Any]]) -> str:
     blocks: list[str] = []
+    remaining_chars = MAX_CONTEXT_CHARS
+
     for idx, chunk in enumerate(chunks, start=1):
+        if remaining_chars <= 0:
+            break
+
         label = citation_label(chunk, idx)
+        text = chunk["text"].strip()
+        if len(text) > remaining_chars:
+            text = text[:remaining_chars].rsplit(" ", 1)[0].strip() + "..."
+
         blocks.append(
             "\n".join(
                 [
                     label,
                     f"Source URL: {chunk.get('source_url') or 'Unavailable'}",
                     f"Similarity: {chunk['score']:.4f}",
-                    chunk["text"],
+                    text,
                 ]
             )
         )
+        remaining_chars -= len(text)
     return "\n\n---\n\n".join(blocks)
 
 

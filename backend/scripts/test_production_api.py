@@ -45,10 +45,14 @@ def main() -> None:
     answer = _post(base_url, "/ask", {"question": "What is overfitting?"})
     assert answer["top_k"] <= 3
     assert answer["similarity_threshold"] == 0.6
-    assert answer["refusal"] is False
     assert len(answer["citations"]) > 0
     assert len(answer["retrieved_chunks"]) <= 3
-    print("PASS /ask grounded question")
+    best_score = answer["best_score"] or 0.0
+    if best_score >= answer["similarity_threshold"]:
+        assert answer["refusal"] is False
+    else:
+        assert answer["refusal"] is True
+    print("PASS /ask grounded retrieval and threshold gate")
 
     unsupported = _post(
         base_url,

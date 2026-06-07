@@ -13,7 +13,7 @@ The RTX 5060 is used locally during offline indexing:
 5. Store normalized vectors in `backend/data/index/faiss.index`.
 6. Store citation metadata in `backend/data/index/metadata.json`.
 
-At runtime, the Render-hosted FastAPI backend loads the FAISS artifact and metadata, embeds the user question with the same sentence-transformers model on CPU, retrieves the top 3 chunks, applies the confidence gate, and calls the configured answer generator only when retrieval passes.
+At runtime, the Render-hosted FastAPI backend loads the FAISS artifact and metadata only when `/ask` is called, embeds the user question with the same sentence-transformers model on CPU, retrieves the top 3 chunks, applies the confidence gate, and calls the configured answer generator only when retrieval passes. The default production embedding model is `sentence-transformers/all-MiniLM-L6-v2` to fit lower-memory hosts.
 
 ## Diagram
 

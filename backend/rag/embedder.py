@@ -1,8 +1,6 @@
 from collections.abc import Sequence
 
 import numpy as np
-import torch
-from sentence_transformers import SentenceTransformer
 
 from backend.rag.config import EMBEDDING_BATCH_SIZE, EMBEDDING_MODEL
 
@@ -14,6 +12,8 @@ def normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
 
 
 def auto_device() -> str:
+    import torch
+
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -28,9 +28,12 @@ class LocalEmbedder:
         self.batch_size = batch_size
         self.device = device or auto_device()
         print(f"Embedding device: {self.device}")
+        import torch
+        from sentence_transformers import SentenceTransformer
+
+        torch.set_num_threads(1)
         self.model = SentenceTransformer(model_name, device=self.device)
 
-    @torch.no_grad()
     def encode(self, texts: Sequence[str]) -> np.ndarray:
         if not texts:
             raise ValueError("No texts were provided for embedding.")

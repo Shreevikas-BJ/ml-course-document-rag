@@ -31,7 +31,7 @@ The RTX 5060 is used only to download PDFs and build the FAISS artifacts locally
 - Frontend: Next.js App Router, React, Vercel
 - Backend: FastAPI, Uvicorn, Render
 - Retrieval: FAISS `IndexFlatIP`, normalized sentence-transformer embeddings
-- Embeddings: `BAAI/bge-base-en-v1.5`
+- Embeddings: `sentence-transformers/all-MiniLM-L6-v2` by default for low-memory hosting
 - Local indexing: PyTorch CUDA on RTX 5060 when available, CPU fallback otherwise
 - Generation: Groq by default, with OpenAI and Ollama-compatible options
 
@@ -59,7 +59,8 @@ requirements.txt
 
 - `TOP_K=3`
 - `SIMILARITY_THRESHOLD=0.6`
-- `EMBEDDING_MODEL=BAAI/bge-base-en-v1.5`
+- `EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2`
+- `MAX_CONTEXT_CHARS=6000`
 - `RAG_CHUNK_SIZE_TOKENS=1000`
 - `RAG_CHUNK_OVERLAP_TOKENS=200`
 
@@ -90,6 +91,8 @@ For production-style generation, use:
 LLM_PROVIDER=groq
 GROQ_API_KEY=<your key>
 GROQ_MODEL=llama-3.1-8b-instant
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+MAX_CONTEXT_CHARS=6000
 ```
 
 ## Build Index Locally With RTX 5060
@@ -107,7 +110,13 @@ backend/data/index/metadata.json
 backend/data/index/index_manifest.json
 ```
 
-The current index artifacts are small enough for GitHub and are committed for the simple Render deployment path. Raw PDFs and processed intermediates stay ignored because they are larger and rebuildable.
+The current index artifacts are built with `sentence-transformers/all-MiniLM-L6-v2`, are small enough for GitHub, and are committed for the simple Render deployment path. Raw PDFs and processed intermediates stay ignored because they are larger and rebuildable.
+
+If you change `EMBEDDING_MODEL`, rebuild the index before deploying:
+
+```powershell
+python backend/scripts/build_index.py --force
+```
 
 If artifacts ever become too large for GitHub, upload them to external storage or a Render persistent disk and set:
 
@@ -131,7 +140,7 @@ Endpoints:
 - `GET /sources`
 - `POST /ask`
 
-`/health` returns backend status, `index_loaded`, `total_chunks`, `embedding_model`, `top_k`, and `similarity_threshold`. `/ready` returns 200 only when the FAISS index and metadata are loadable.
+`/health` returns backend status, `index_loaded`, `total_chunks`, `embedding_model`, `top_k`, and `similarity_threshold` without loading the embedding model. `/ready` returns 200 when the FAISS index and metadata files exist.
 
 ## Render Backend Deployment
 
@@ -147,9 +156,10 @@ This repo includes [render.yaml](render.yaml) for a Render web service.
    - `LLM_PROVIDER=groq`
    - `GROQ_API_KEY=<your Groq key>`
    - `GROQ_MODEL=llama-3.1-8b-instant`
-   - `EMBEDDING_MODEL=BAAI/bge-base-en-v1.5`
+   - `EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2`
    - `TOP_K=3`
    - `SIMILARITY_THRESHOLD=0.6`
+   - `MAX_CONTEXT_CHARS=6000`
    - `ALLOWED_ORIGINS=https://your-vercel-app.vercel.app`
 5. Deploy.
 6. Test:
@@ -158,6 +168,8 @@ This repo includes [render.yaml](render.yaml) for a Render web service.
    - `https://your-render-backend.onrender.com/sources`
 
 Render runs question embeddings on CPU unless you choose a GPU-capable host. It does not need your local RTX 5060 or local laptop after the FAISS artifacts are deployed.
+
+Render Free has a 512 MB RAM limit and may fail with larger sentence-transformer models such as `BAAI/bge-base-en-v1.5`. For the free tier, use `sentence-transformers/all-MiniLM-L6-v2` and a compact index. For smoother production behavior, use a Render instance with at least 1 GB RAM.
 
 ## Frontend Setup
 

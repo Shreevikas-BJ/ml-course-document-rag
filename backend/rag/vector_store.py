@@ -52,7 +52,7 @@ class VectorStore:
         index_path.parent.mkdir(parents=True, exist_ok=True)
         faiss.write_index(self.index, str(index_path))
         metadata_path.write_text(
-            json.dumps(self.metadata, indent=2, ensure_ascii=False),
+            json.dumps(self.metadata, ensure_ascii=False, separators=(",", ":")),
             encoding="utf-8",
         )
 

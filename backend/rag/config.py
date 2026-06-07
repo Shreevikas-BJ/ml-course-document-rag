@@ -26,12 +26,15 @@ INDEX_MANIFEST_PATH = INDEX_DIR / "index_manifest.json"
 INDEX_ARTIFACT_URL = os.getenv("INDEX_ARTIFACT_URL", "").strip()
 METADATA_ARTIFACT_URL = os.getenv("METADATA_ARTIFACT_URL", "").strip()
 
-DEFAULT_EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
+DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_MODEL = os.getenv(
     "EMBEDDING_MODEL",
     os.getenv("RAG_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
 )
-EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", os.getenv("RAG_BATCH_SIZE", "32")))
+EMBEDDING_BATCH_SIZE = int(
+    os.getenv("EMBEDDING_BATCH_SIZE", os.getenv("RAG_BATCH_SIZE", "32"))
+)
+MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", "6000"))
 
 TOP_K = int(os.getenv("TOP_K", os.getenv("RAG_TOP_K", "3")))
 SIMILARITY_THRESHOLD = float(

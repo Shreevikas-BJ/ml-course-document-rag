@@ -7,11 +7,9 @@ import { AnswerCard } from "./AnswerCard";
 export type Citation = {
   chunk_id: string;
   source_title: string;
-  file_name: string;
   page_start: number | null;
   page_end: number | null;
   source_url: string | null;
-  category: string | null;
   similarity_score: number;
 };
 

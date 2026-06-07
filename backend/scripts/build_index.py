@@ -97,18 +97,10 @@ def build_index(force: bool = False) -> None:
         {
             "chunk_id": chunk["chunk_id"],
             "source_title": chunk["source_title"],
-            "authors_or_organization": chunk["authors_or_organization"],
-            "year": chunk["year"],
-            "source_url": chunk["source_url"],
-            "license_or_access_note": chunk["license_or_access_note"],
-            "category": chunk["category"],
-            "file_name": chunk["file_name"],
-            "file_hash": chunk["file_hash"],
             "page_start": chunk["page_start"],
             "page_end": chunk["page_end"],
-            "chunk_index": chunk["chunk_index"],
+            "source_url": chunk["source_url"],
             "text": chunk["text"],
-            "token_count_estimate": chunk["token_count_estimate"],
         }
         for chunk in chunks
     ]

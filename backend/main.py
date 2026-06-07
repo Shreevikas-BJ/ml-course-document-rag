@@ -14,6 +14,7 @@ from backend.rag.artifacts import (
 from backend.rag.config import (
     EMBEDDING_MODEL,
     INDEX_DIR,
+    INDEX_MANIFEST_PATH,
     METADATA_PATH,
     RAW_PDFS_DIR,
     REFUSAL_MESSAGE,
@@ -23,8 +24,6 @@ from backend.rag.config import (
     cors_origins,
     ensure_data_dirs,
 )
-from backend.rag.generator import AnswerGenerator
-from backend.rag.retriever import Retriever
 from backend.rag.schemas import (
     AskRequest,
     AskResponse,
@@ -33,7 +32,7 @@ from backend.rag.schemas import (
     RetrievedChunk,
     SourceMetadata,
 )
-from backend.rag.vector_store import VectorStore
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -59,12 +58,16 @@ app.add_middleware(
 
 
 @lru_cache(maxsize=1)
-def get_retriever() -> Retriever:
+def get_retriever():
+    from backend.rag.retriever import Retriever
+
     return Retriever()
 
 
 @lru_cache(maxsize=1)
-def get_generator() -> AnswerGenerator:
+def get_generator():
+    from backend.rag.generator import AnswerGenerator
+
     return AnswerGenerator()
 
 
@@ -72,13 +75,13 @@ def _source_manifest_path() -> Path:
     return RAW_PDFS_DIR / "source_manifest.json"
 
 
-def _load_metadata() -> list[dict[str, Any]]:
-    if not METADATA_PATH.exists():
-        return []
+def _load_index_manifest() -> dict[str, Any]:
+    if not INDEX_MANIFEST_PATH.exists():
+        return {}
 
     import json
 
-    return json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+    return json.loads(INDEX_MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
 def _load_sources() -> list[SourceMetadata]:
@@ -89,35 +92,16 @@ def _load_sources() -> list[SourceMetadata]:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
         return [SourceMetadata(**item) for item in data]
 
-    metadata = _load_metadata()
-    seen: dict[str, dict[str, Any]] = {}
-    for row in metadata:
-        title = row.get("source_title") or row.get("file_name") or "Unknown source"
-        if title in seen:
-            continue
-        seen[title] = {
-            "title": title,
-            "authors_or_organization": row.get("authors_or_organization", "Unknown"),
-            "year": row.get("year", "Unknown"),
-            "url": row.get("source_url", ""),
-            "local_filename": row.get("file_name", ""),
-            "license_or_access_note": row.get(
-                "license_or_access_note", "Indexed local document."
-            ),
-            "category": row.get("category", "Uncategorized"),
-        }
-    return [SourceMetadata(**item) for item in seen.values()]
+    return []
 
 
 def _to_citation(chunk: dict[str, Any]) -> Citation:
     return Citation(
         chunk_id=chunk["chunk_id"],
         source_title=chunk["source_title"],
-        file_name=chunk["file_name"],
         page_start=chunk.get("page_start"),
         page_end=chunk.get("page_end"),
         source_url=chunk.get("source_url"),
-        category=chunk.get("category"),
         similarity_score=chunk["score"],
     )
 
@@ -127,11 +111,9 @@ def _to_retrieved_chunk(chunk: dict[str, Any]) -> RetrievedChunk:
     return RetrievedChunk(
         chunk_id=citation.chunk_id,
         source_title=citation.source_title,
-        file_name=citation.file_name,
         page_start=citation.page_start,
         page_end=citation.page_end,
         source_url=citation.source_url,
-        category=citation.category,
         similarity_score=citation.similarity_score,
         text=chunk["text"],
     )
@@ -140,7 +122,8 @@ def _to_retrieved_chunk(chunk: dict[str, Any]) -> RetrievedChunk:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     index_loaded = index_files_present()
-    total_chunks = len(_load_metadata()) if METADATA_PATH.exists() else 0
+    manifest = _load_index_manifest()
+    total_chunks = int(manifest.get("vector_count", 0))
     sources_count = len(_load_sources())
     return HealthResponse(
         status="ok",
@@ -161,18 +144,12 @@ def ready() -> dict[str, Any]:
     if not index_files_present():
         raise HTTPException(status_code=503, detail=INDEX_MISSING_MESSAGE)
 
-    try:
-        store = VectorStore.load()
-    except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail=INDEX_MISSING_MESSAGE) from exc
-
-    if not store.metadata:
-        raise HTTPException(status_code=503, detail=INDEX_MISSING_MESSAGE)
+    manifest = _load_index_manifest()
 
     return {
         "status": "ready",
         "index_loaded": True,
-        "total_chunks": len(store.metadata),
+        "total_chunks": int(manifest.get("vector_count", 0)),
         "embedding_model": EMBEDDING_MODEL,
     }
 

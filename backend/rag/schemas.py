@@ -8,11 +8,9 @@ class AskRequest(BaseModel):
 class Citation(BaseModel):
     chunk_id: str
     source_title: str
-    file_name: str
     page_start: int | None = None
     page_end: int | None = None
     source_url: str | None = None
-    category: str | None = None
     similarity_score: float
 
 
