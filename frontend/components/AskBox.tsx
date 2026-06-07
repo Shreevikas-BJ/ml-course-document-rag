@@ -28,16 +28,6 @@ export type AskResponse = {
   similarity_threshold: number;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-function getAskEndpoint() {
-  if (!API_BASE_URL) {
-    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured");
-  }
-
-  return `${API_BASE_URL.replace(/\/$/, "")}/ask`;
-}
-
 export function AskBox() {
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState<AskResponse | null>(null);
@@ -55,7 +45,7 @@ export function AskBox() {
     setError(null);
 
     try {
-      const result = await fetch(getAskEndpoint(), {
+      const result = await fetch("/api/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -64,7 +54,9 @@ export function AskBox() {
       });
 
       if (!result.ok) {
-        const errorText = await result.text();
+        const errorBody = await result.json().catch(() => null);
+        const errorText =
+          errorBody?.error || errorBody?.detail || JSON.stringify(errorBody);
         throw new Error(
           errorText || `Request failed with status ${result.status}`
         );

@@ -1,244 +1,189 @@
 # AI/ML Knowledge RAG Assistant
 
-A portfolio-ready AI and machine learning RAG system with a Vercel-hosted Next.js frontend, a Render-hosted FastAPI backend, local RTX 5060 embedding generation, FAISS vector search, strict retrieval grounding, and citation-based answers.
+A portfolio-ready AI/ML document assistant deployed as one Vercel Next.js app. The browser UI and `/api/ask` backend live together under `frontend/`; Supabase pgvector stores document chunks; OpenAI embeddings power retrieval; Groq generates grounded answers from retrieved context.
 
-Streamlit was removed so the frontend can be deployed as a modern web app and the RAG service can run as a clean Python API.
+The production app no longer uses Render, FastAPI, FAISS, PyTorch, sentence-transformers, or local GPU/model loading. After ingestion, the app does not depend on your laptop being online.
 
-## Production Architecture
+## Architecture
 
 ```mermaid
 flowchart LR
-  User["User"] --> Vercel["Next.js frontend on Vercel"]
-  Vercel --> Render["FastAPI backend on Render"]
-  Render --> FAISS["backend/data/index/faiss.index"]
-  Render --> Metadata["backend/data/index/metadata.json"]
-  Render --> LLM["Groq / OpenAI / Ollama-compatible LLM"]
+  User["User"] --> Vercel["Vercel Next.js app"]
+  Vercel --> Route["/api/ask route"]
+  Route --> OpenAI["OpenAI embeddings"]
+  Route --> Supabase["Supabase Postgres + pgvector"]
+  Supabase --> Route
+  Route --> Groq["Groq chat completion"]
+  Groq --> Route
+  Route --> User
 
-  subgraph LocalOnly["Local offline indexing"]
-    RTX["RTX 5060"] --> Embed["sentence-transformers embeddings"]
-    PDFs["Official/open PDFs"] --> Extract["PyMuPDF extraction"]
-    Extract --> Chunk["Chunking"]
-    Chunk --> Embed
-    Embed --> FAISS
-    Chunk --> Metadata
+  subgraph Local["Local ingestion only"]
+    Manifest["frontend/data/source_manifest.json"] --> PDFs["Open-access PDFs"]
+    PDFs --> Extract["PDF page extraction"]
+    Extract --> Chunks["Chunking + content hashes"]
+    Chunks --> IngestEmbeddings["OpenAI embeddings"]
+    IngestEmbeddings --> Supabase
   end
 ```
 
-The RTX 5060 is used only to download PDFs and build the FAISS artifacts locally. The deployed production app does not depend on the laptop being online.
-
 ## Tech Stack
 
-- Frontend: Next.js App Router, React, Vercel
-- Backend: FastAPI, Uvicorn, Render
-- Retrieval: FAISS `IndexFlatIP`, normalized sentence-transformer embeddings
-- Embeddings: `sentence-transformers/paraphrase-MiniLM-L3-v2` by default for the smallest Render footprint
-- Local indexing: PyTorch CUDA on RTX 5060 when available, CPU fallback otherwise
-- Generation: Groq by default, with OpenAI and Ollama-compatible options
+- Next.js App Router
+- Next.js Route Handlers
+- Supabase PostgreSQL with pgvector
+- OpenAI `text-embedding-3-small`
+- Groq `llama-3.1-8b-instant`
+- Local TypeScript ingestion script
 
 ## Repository Layout
 
 ```text
 frontend/
   app/
+    api/ask/route.ts
+    page.tsx
+    layout.tsx
+    globals.css
   components/
-backend/
-  main.py
-  rag/
-  scripts/
-  data/
-    raw_pdfs/      # PDFs ignored, rebuilt locally
-    processed/     # extracted/chunked intermediates ignored
-    index/         # committed deployable FAISS artifacts
-docs/
-render.yaml
-requirements.txt
-.env.example
+  data/source_manifest.json
+  scripts/ingest.ts
+  supabase/schema.sql
+  package.json
+  .env.local.example
 ```
 
 ## Retrieval Settings
 
 - `TOP_K=3`
 - `SIMILARITY_THRESHOLD=0.6`
-- `EMBEDDING_MODEL=sentence-transformers/paraphrase-MiniLM-L3-v2`
-- `LOW_MEMORY_MODE=false`
 - `MAX_CONTEXT_CHARS=5000`
-- `RAG_CHUNK_SIZE_TOKENS=1000`
-- `RAG_CHUNK_OVERLAP_TOKENS=200`
+- `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`
 
-The backend retrieves the top 3 chunks and answers only if at least one chunk has similarity `>= 0.6`. Otherwise it returns:
+If no retrieved chunk has similarity `>= 0.6`, `/api/ask` returns:
 
 ```text
 Not enough information in the indexed AI/ML documents to answer confidently.
 ```
 
-## Local Backend Setup
+## Supabase Setup
+
+1. Create a Supabase project.
+2. Open the Supabase SQL editor.
+3. Run [frontend/supabase/schema.sql](frontend/supabase/schema.sql).
+4. Confirm the `documents` table exists.
+5. Confirm the `match_documents` function exists.
+
+The schema enables pgvector, creates `documents`, adds a vector index, and defines:
+
+```sql
+match_documents(query_embedding vector(1536), match_threshold float, match_count int)
+```
+
+It returns `id`, `content`, `source_title`, `source_url`, `page_start`, `page_end`, `category`, and `similarity`.
+
+## Local Environment
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
+cd frontend
+Copy-Item .env.local.example .env.local
 ```
 
-For local testing without a hosted LLM key, set:
+Fill in:
 
 ```text
-LLM_PROVIDER=none
-```
-
-For production-style generation, use:
-
-```text
-LLM_PROVIDER=groq
-GROQ_API_KEY=<your key>
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+GROQ_API_KEY=
 GROQ_MODEL=llama-3.1-8b-instant
-EMBEDDING_MODEL=sentence-transformers/paraphrase-MiniLM-L3-v2
+TOP_K=3
+SIMILARITY_THRESHOLD=0.6
 MAX_CONTEXT_CHARS=5000
 ```
 
-## Build Index Locally With RTX 5060
+Use the Supabase service role key only on the server or in local ingestion. Do not expose it as a `NEXT_PUBLIC_` variable.
 
-```powershell
-python backend/scripts/download_sources.py
-python backend/scripts/build_index.py
-```
-
-This downloads the official/open-access PDFs from the source manifest, extracts page text, chunks documents, embeds locally with CUDA if available, normalizes vectors, and writes:
-
-```text
-backend/data/index/faiss.index
-backend/data/index/metadata.json
-backend/data/index/index_manifest.json
-```
-
-The current index artifacts are built with `sentence-transformers/paraphrase-MiniLM-L3-v2`, are small enough for GitHub, and are committed for the simple Render deployment path. Raw PDFs and processed intermediates stay ignored because they are larger and rebuildable.
-
-If you change `EMBEDDING_MODEL`, rebuild the index before deploying:
-
-```powershell
-python backend/scripts/build_index.py --force
-```
-
-The runtime embedding model and the index build model must match. For example:
-
-```powershell
-$env:EMBEDDING_MODEL="sentence-transformers/paraphrase-MiniLM-L3-v2"
-python backend/scripts/build_index.py --force
-```
-
-If artifacts ever become too large for GitHub, upload them to external storage or a Render persistent disk and set:
-
-```text
-INDEX_ARTIFACT_URL=<download URL for faiss.index>
-METADATA_ARTIFACT_URL=<download URL for metadata.json>
-```
-
-The backend will download missing artifacts at startup when those URLs are configured.
-
-## Run Backend Locally
-
-```powershell
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Endpoints:
-
-- `GET /health`
-- `GET /ready`
-- `GET /sources`
-- `POST /ask`
-
-`/health` returns backend status, `index_loaded`, `total_chunks`, `embedding_model`, `top_k`, and `similarity_threshold` without loading the embedding model. `/ready` returns 200 when the FAISS index and metadata files exist.
-
-## Render Backend Deployment
-
-This repo includes [render.yaml](render.yaml) for a Render web service.
-
-1. Push the repo to GitHub.
-2. In Render, create a Blueprint or Web Service connected to this repo.
-3. Use the included `render.yaml`, or configure manually:
-   - Runtime: Python
-   - Build command: `pip install -r requirements.txt`
-   - Start command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-4. Add environment variables:
-   - `LLM_PROVIDER=groq`
-   - `GROQ_API_KEY=<your Groq key>`
-   - `GROQ_MODEL=llama-3.1-8b-instant`
-   - `LOW_MEMORY_MODE=false`
-   - `EMBEDDING_MODEL=sentence-transformers/paraphrase-MiniLM-L3-v2`
-   - `TOP_K=3`
-   - `SIMILARITY_THRESHOLD=0.6`
-   - `MAX_CONTEXT_CHARS=5000`
-   - `ALLOWED_ORIGINS=https://your-vercel-app.vercel.app`
-5. Deploy.
-6. Test:
-   - `https://your-render-backend.onrender.com/health`
-   - `https://your-render-backend.onrender.com/ready`
-   - `https://your-render-backend.onrender.com/sources`
-
-Render runs question embeddings on CPU unless you choose a GPU-capable host. It does not need your local RTX 5060 or local laptop after the FAISS artifacts are deployed.
-
-Render Free has a 512 MB RAM limit and may fail with larger sentence-transformer models such as `BAAI/bge-base-en-v1.5`. For the free tier, use a compact MiniLM index and keep `MAX_CONTEXT_CHARS=5000`. The production API loads only `backend/data/index/faiss.index` and `backend/data/index/metadata.json`; `index_manifest.json` is a small build audit file that records which embedding model produced the index.
-
-Recommended Render Free path:
-
-```powershell
-$env:EMBEDDING_MODEL="sentence-transformers/paraphrase-MiniLM-L3-v2"
-python backend/scripts/build_index.py --force
-git add backend/data/index/faiss.index backend/data/index/metadata.json backend/data/index/index_manifest.json
-git commit -m "Rebuild compact MiniLM index"
-git push
-```
-
-The optional `LOW_MEMORY_MODE=true` preset uses `sentence-transformers/all-MiniLM-L6-v2` when `EMBEDDING_MODEL` is not set. If you enable that mode, rebuild and commit the FAISS index with the same model before redeploying Render. For smoother production behavior, use a Render instance with at least 1 GB RAM.
-
-## Frontend Setup
+## Install And Run
 
 ```powershell
 cd frontend
 npm install
-Copy-Item .env.local.example .env.local
 npm run dev
 ```
 
-`frontend/.env.local.example` contains:
+Open `http://localhost:3000`.
+
+## Ingest Documents
+
+Run this after setting Supabase and OpenAI variables in `frontend/.env.local`:
+
+```powershell
+cd frontend
+npm run ingest
+```
+
+The script reads [frontend/data/source_manifest.json](frontend/data/source_manifest.json), downloads legal/open-access PDFs into ignored local storage, extracts page text, chunks content, embeds chunks with OpenAI, skips existing `content_hash` rows, and uploads batches to Supabase.
+
+The current manifest includes Stanford AI Index 2025, NIST AI RMF, NIST Generative AI Profile, OWASP LLM Top 10, Stanford CS229 notes, Attention Is All You Need, BERT, RAG surveys, LLM surveys, and agentic AI survey material.
+
+## API Behavior
+
+`POST /api/ask`
+
+Request:
+
+```json
+{ "question": "What is overfitting?" }
+```
+
+Response:
+
+```json
+{
+  "answer": "...",
+  "citations": [],
+  "retrieved_chunks": [],
+  "similarity_scores": [],
+  "refusal": false,
+  "best_score": 0.82,
+  "top_k": 3,
+  "similarity_threshold": 0.6
+}
+```
+
+The route embeds the question with OpenAI, calls Supabase `match_documents`, refuses unsupported questions, and sends only retrieved context to Groq.
+
+## Vercel Deployment
+
+Vercel settings:
+
+- Root Directory: `frontend`
+- Framework Preset: `Next.js`
+- Install Command: `npm install`
+- Build Command: `npm run build`
+- Output Directory: leave blank/default
+
+Environment variables:
 
 ```text
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+OPENAI_API_KEY=
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.1-8b-instant
+TOP_K=3
+SIMILARITY_THRESHOLD=0.6
+MAX_CONTEXT_CHARS=5000
 ```
 
-## Vercel Frontend Deployment
+No Render backend is required. No local laptop, FAISS index, PyTorch model, or CUDA GPU is used at runtime.
 
-1. Import this GitHub repo in Vercel.
-2. Set project root to `frontend`.
-3. Add environment variable:
-   - `NEXT_PUBLIC_API_BASE_URL=https://ml-course-document-rag.onrender.com`
-4. Use these frontend build settings:
-   - Framework Preset: `Next.js`
-   - Install Command: `npm install`
-   - Build Command: `npm run build`
-   - Output Directory: leave blank/default
-5. Deploy.
-6. Test the full question-answer flow from the Vercel URL.
+## Testing
 
-Do not hardcode localhost in production. The frontend reads the backend URL from `NEXT_PUBLIC_API_BASE_URL`.
-
-## Tests
-
-Backend checks:
-
-```powershell
-python -m compileall backend
-python backend/scripts/test_retrieval.py
-```
-
-Production API smoke test:
-
-```powershell
-python backend/scripts/test_production_api.py --api-base-url https://your-render-backend.onrender.com
-```
-
-Frontend checks when npm is available:
+Build check:
 
 ```powershell
 cd frontend
@@ -246,45 +191,27 @@ npm install
 npm run build
 ```
 
-## Source Manifest
+Local API smoke test after ingestion:
 
-The source list is documented in [docs/SOURCE_MANIFEST.md](docs/SOURCE_MANIFEST.md), and `backend/data/raw_pdfs/source_manifest.json` is generated by the downloader. The project uses official, legal, and open-access sources only.
-
-## Example Questions
-
-- What is overfitting?
-- How does attention work in transformers?
-- What does the NIST AI RMF say about measuring AI risk?
-- What are common RAG failure modes?
-- Who won yesterday's NBA game?
-
-The NBA question should refuse because it is outside the indexed AI/ML documents.
-
-## Troubleshooting
-
-If `/ready` returns 503:
-
-```text
-FAISS index not found. Build the index locally and deploy/copy backend/data/index/faiss.index and metadata.json.
+```powershell
+Invoke-RestMethod `
+  -Uri http://localhost:3000/api/ask `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"question":"What is overfitting?"}'
 ```
 
-Rebuild locally and make sure `backend/data/index/faiss.index` and `backend/data/index/metadata.json` are present in the deployed backend.
+Verify:
 
-If Groq generation fails, verify `LLM_PROVIDER=groq`, `GROQ_API_KEY`, and `GROQ_MODEL`.
-
-If the frontend cannot reach the backend, check:
-
-```text
-NEXT_PUBLIC_API_BASE_URL=https://ml-course-document-rag.onrender.com
-ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
-```
-
-If Vercel shows its platform `404 NOT_FOUND` page after a successful deployment, verify the Vercel project uses `frontend` as the Root Directory and that Output Directory is blank/default. Do not set Output Directory to `frontend`, `out`, or `.next` for this Next.js App Router deployment.
+- Supabase `match_documents` returns rows for AI/ML questions.
+- `top_k` is `3`.
+- `similarity_threshold` is `0.6`.
+- Citations include source title, page number, and similarity score.
+- Unsupported questions such as “Who won yesterday's NBA game?” return the refusal message.
 
 ## Future Improvements
 
-- Add a reranker for stronger citation ordering.
-- Add streamed answer generation.
-- Add category/source filters.
-- Add a managed artifact store for larger indexes.
-- Add Docker images for backend deployment portability.
+- Add streaming answers from `/api/ask`.
+- Add source/category filters.
+- Add an admin-only reingestion dashboard.
+- Add a reranker before Groq generation.

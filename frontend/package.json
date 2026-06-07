@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "ingest": "tsx scripts/ingest.ts",
     "lint": "eslint ."
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.84.0",
     "lucide-react": "^0.468.0",
     "next": "^16.1.6",
+    "openai": "^6.10.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
@@ -19,8 +22,11 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "dotenv": "^17.2.3",
     "eslint": "^9.17.0",
     "eslint-config-next": "^16.1.6",
+    "pdfjs-dist": "^5.4.394",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
   }
 }
