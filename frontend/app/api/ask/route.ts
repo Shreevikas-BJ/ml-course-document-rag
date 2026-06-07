@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
 
 export const runtime = "nodejs";
 
 const REFUSAL_MESSAGE =
   "Not enough information in the indexed AI/ML documents to answer confidently.";
+const JINA_EMBEDDING_DIMENSIONS = 1024;
 
 type MatchedDocument = {
   id: string;
@@ -29,6 +29,21 @@ type Citation = {
 
 type RetrievedChunk = Citation & {
   text: string;
+};
+
+type JinaEmbeddingResponse = {
+  data: Array<{
+    index: number;
+    embedding: number[];
+  }>;
+};
+
+type GroqChatResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
 };
 
 function env(name: string, fallback?: string) {
@@ -65,31 +80,36 @@ function getSupabaseClient() {
   );
 }
 
-function getOpenAIClient() {
-  return new OpenAI({
-    apiKey: env("OPENAI_API_KEY")
-  });
-}
-
-function getGroqClient() {
-  return new OpenAI({
-    apiKey: env("GROQ_API_KEY"),
-    baseURL: "https://api.groq.com/openai/v1"
-  });
-}
-
 async function embedQuestion(question: string) {
-  const provider = process.env.EMBEDDING_PROVIDER?.trim().toLowerCase() || "openai";
-  if (provider !== "openai") {
-    throw new Error("Only EMBEDDING_PROVIDER=openai is supported in this deployment.");
+  const provider = process.env.EMBEDDING_PROVIDER?.trim().toLowerCase() || "jina";
+  if (provider !== "jina") {
+    throw new Error("Only EMBEDDING_PROVIDER=jina is supported in this deployment.");
   }
 
-  const response = await getOpenAIClient().embeddings.create({
-    model: env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
-    input: question
+  const response = await fetch("https://api.jina.ai/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env("JINA_API_KEY")}`
+    },
+    body: JSON.stringify({
+      model: env("JINA_EMBEDDING_MODEL", "jina-embeddings-v3"),
+      task: "retrieval.query",
+      dimensions: JINA_EMBEDDING_DIMENSIONS,
+      input: [question]
+    })
   });
 
-  return response.data[0].embedding;
+  if (!response.ok) {
+    throw new Error(`Jina embedding request failed: ${await response.text()}`);
+  }
+
+  const payload = (await response.json()) as JinaEmbeddingResponse;
+  const embedding = payload.data?.[0]?.embedding;
+  if (!embedding?.length) {
+    throw new Error("Jina embedding response did not include an embedding.");
+  }
+  return embedding;
 }
 
 async function retrieveDocuments(questionEmbedding: number[]) {
@@ -171,19 +191,31 @@ Rules:
 - Do not invent page numbers, source names, URLs, or facts.
 - Keep answers student-friendly and concise.`;
 
-  const response = await getGroqClient().chat.completions.create({
-    model: env("GROQ_MODEL", "llama-3.1-8b-instant"),
-    temperature: 0,
-    messages: [
-      { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        content: `Question: ${question}\n\nRetrieved context:\n${context}`
-      }
-    ]
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env("GROQ_API_KEY")}`
+    },
+    body: JSON.stringify({
+      model: env("GROQ_MODEL", "llama-3.1-8b-instant"),
+      temperature: 0,
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `Question: ${question}\n\nRetrieved context:\n${context}`
+        }
+      ]
+    })
   });
 
-  return response.choices[0]?.message?.content?.trim() || REFUSAL_MESSAGE;
+  if (!response.ok) {
+    throw new Error(`Groq request failed: ${await response.text()}`);
+  }
+
+  const payload = (await response.json()) as GroqChatResponse;
+  return payload.choices?.[0]?.message?.content?.trim() || REFUSAL_MESSAGE;
 }
 
 function toCitation(chunk: MatchedDocument): Citation {
@@ -254,4 +286,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

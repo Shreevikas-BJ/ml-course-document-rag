@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import OpenAI from "openai";
 
 type SourceEntry = {
   title: string;
@@ -37,15 +36,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = path.resolve(__dirname, "..");
 const MANIFEST_PATH = path.join(FRONTEND_DIR, "data", "source_manifest.json");
 const PDF_DIR = path.join(FRONTEND_DIR, "data", "raw_pdfs");
+const JINA_EMBEDDING_DIMENSIONS = 1024;
 
 config({ path: path.join(FRONTEND_DIR, ".env.local") });
 config();
 
 const CHUNK_SIZE_CHARS = Number(process.env.CHUNK_SIZE_CHARS ?? 4000);
 const CHUNK_OVERLAP_CHARS = Number(process.env.CHUNK_OVERLAP_CHARS ?? 800);
-const EMBEDDING_BATCH_SIZE = Number(process.env.EMBEDDING_BATCH_SIZE ?? 32);
+const EMBEDDING_BATCH_SIZE = Number(process.env.EMBEDDING_BATCH_SIZE ?? 24);
 const INSERT_BATCH_SIZE = Number(process.env.INSERT_BATCH_SIZE ?? 50);
-const EMBEDDING_DELAY_MS = Number(process.env.EMBEDDING_DELAY_MS ?? 250);
+const EMBEDDING_DELAY_MS = Number(process.env.EMBEDDING_DELAY_MS ?? 500);
 
 function env(name: string, fallback?: string) {
   const value = process.env[name]?.trim() || fallback;
@@ -152,14 +152,41 @@ function chunkPage(page: PageRecord): ChunkRecord[] {
   return chunks;
 }
 
-async function embedTexts(openai: OpenAI, texts: string[]) {
+type JinaEmbeddingResponse = {
+  data: Array<{
+    index: number;
+    embedding: number[];
+  }>;
+};
+
+async function embedTexts(texts: string[]) {
+  const provider = process.env.EMBEDDING_PROVIDER?.trim().toLowerCase() || "jina";
+  if (provider !== "jina") {
+    throw new Error("Only EMBEDDING_PROVIDER=jina is supported by this ingestion script.");
+  }
+
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     try {
-      const response = await openai.embeddings.create({
-        model: env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
-        input: texts
+      const response = await fetch("https://api.jina.ai/v1/embeddings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env("JINA_API_KEY")}`
+        },
+        body: JSON.stringify({
+          model: env("JINA_EMBEDDING_MODEL", "jina-embeddings-v3"),
+          task: "retrieval.passage",
+          dimensions: JINA_EMBEDDING_DIMENSIONS,
+          input: texts
+        })
       });
-      return response.data
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const payload = (await response.json()) as JinaEmbeddingResponse;
+      return payload.data
         .sort((left, right) => left.index - right.index)
         .map((item) => item.embedding);
     } catch (error) {
@@ -207,7 +234,6 @@ async function ingestChunks(chunks: ChunkRecord[]) {
       }
     }
   );
-  const openai = new OpenAI({ apiKey: env("OPENAI_API_KEY") });
   const existing = await existingHashes(
     supabase,
     chunks.map((chunk) => chunk.content_hash)
@@ -221,7 +247,6 @@ async function ingestChunks(chunks: ChunkRecord[]) {
   for (let start = 0; start < pending.length; start += EMBEDDING_BATCH_SIZE) {
     const batch = pending.slice(start, start + EMBEDDING_BATCH_SIZE);
     const embeddings = await embedTexts(
-      openai,
       batch.map((chunk) => chunk.content)
     );
 

@@ -10,7 +10,7 @@ create table if not exists public.documents (
   page_start int,
   page_end int,
   category text,
-  embedding vector(1536) not null,
+  embedding vector(1024) not null,
   created_at timestamptz not null default now()
 );
 
@@ -23,7 +23,7 @@ create index if not exists documents_source_title_idx
 on public.documents (source_title);
 
 create or replace function public.match_documents(
-  query_embedding vector(1536),
+  query_embedding vector(1024),
   match_threshold float,
   match_count int
 )
@@ -54,4 +54,3 @@ as $$
   order by documents.embedding <=> query_embedding
   limit match_count;
 $$;
-
