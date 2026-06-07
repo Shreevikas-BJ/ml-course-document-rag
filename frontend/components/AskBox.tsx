@@ -28,8 +28,15 @@ export type AskResponse = {
   similarity_threshold: number;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+function getAskEndpoint() {
+  if (!API_BASE_URL) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured");
+  }
+
+  return `${API_BASE_URL.replace(/\/$/, "")}/ask`;
+}
 
 export function AskBox() {
   const [question, setQuestion] = useState("");
@@ -48,7 +55,7 @@ export function AskBox() {
     setError(null);
 
     try {
-      const result = await fetch(`${API_BASE_URL}/ask`, {
+      const result = await fetch(getAskEndpoint(), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -57,7 +64,10 @@ export function AskBox() {
       });
 
       if (!result.ok) {
-        throw new Error(`Request failed with status ${result.status}`);
+        const errorText = await result.text();
+        throw new Error(
+          errorText || `Request failed with status ${result.status}`
+        );
       }
 
       const data = (await result.json()) as AskResponse;

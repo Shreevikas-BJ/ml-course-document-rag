@@ -191,9 +191,14 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 1. Import this GitHub repo in Vercel.
 2. Set project root to `frontend`.
 3. Add environment variable:
-   - `NEXT_PUBLIC_API_BASE_URL=https://your-render-backend.onrender.com`
-4. Deploy.
-5. Test the full question-answer flow from the Vercel URL.
+   - `NEXT_PUBLIC_API_BASE_URL=https://ml-course-document-rag.onrender.com`
+4. Use these frontend build settings:
+   - Framework Preset: `Next.js`
+   - Install Command: `npm install`
+   - Build Command: `npm run build`
+   - Output Directory: leave blank/default
+5. Deploy.
+6. Test the full question-answer flow from the Vercel URL.
 
 Do not hardcode localhost in production. The frontend reads the backend URL from `NEXT_PUBLIC_API_BASE_URL`.
 
@@ -249,9 +254,11 @@ If Groq generation fails, verify `LLM_PROVIDER=groq`, `GROQ_API_KEY`, and `GROQ_
 If the frontend cannot reach the backend, check:
 
 ```text
-NEXT_PUBLIC_API_BASE_URL=https://your-render-backend.onrender.com
+NEXT_PUBLIC_API_BASE_URL=https://ml-course-document-rag.onrender.com
 ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
 ```
+
+If Vercel shows its platform `404 NOT_FOUND` page after a successful deployment, verify the Vercel project uses `frontend` as the Root Directory and that Output Directory is blank/default. Do not set Output Directory to `frontend`, `out`, or `.next` for this Next.js App Router deployment.
 
 ## Future Improvements
 

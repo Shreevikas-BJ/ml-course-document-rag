@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 !frontend/.env.local.example
+!frontend/.env.production.example
 
 __pycache__/
 *.py[cod]
