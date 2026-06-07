@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Any
 
@@ -6,10 +5,20 @@ import faiss
 import numpy as np
 
 from backend.rag.config import METADATA_PATH, VECTOR_INDEX_PATH
+from backend.rag.metadata import (
+    MetadataRow,
+    expand_metadata_record,
+    load_metadata,
+    write_metadata,
+)
 
 
 class VectorStore:
-    def __init__(self, index: faiss.Index, metadata: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        index: faiss.Index,
+        metadata: list[MetadataRow] | list[dict[str, Any]],
+    ) -> None:
         if index.ntotal != len(metadata):
             raise ValueError(
                 f"FAISS vectors ({index.ntotal}) do not match metadata rows ({len(metadata)})."
@@ -41,7 +50,7 @@ class VectorStore:
             raise FileNotFoundError(f"Missing metadata file: {metadata_path}")
 
         index = faiss.read_index(str(index_path))
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata = load_metadata(metadata_path, compact=True)
         return cls(index=index, metadata=metadata)
 
     def save(
@@ -51,10 +60,7 @@ class VectorStore:
     ) -> None:
         index_path.parent.mkdir(parents=True, exist_ok=True)
         faiss.write_index(self.index, str(index_path))
-        metadata_path.write_text(
-            json.dumps(self.metadata, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
+        write_metadata(self.metadata, metadata_path)
 
     def search(self, query_embedding: np.ndarray, top_k: int) -> list[dict[str, Any]]:
         query = query_embedding.reshape(1, -1).astype(np.float32)
@@ -64,7 +70,7 @@ class VectorStore:
         for idx, score in zip(ids[0].tolist(), scores[0].tolist()):
             if idx == -1:
                 continue
-            record = dict(self.metadata[idx])
+            record = expand_metadata_record(self.metadata[idx])
             record["score"] = float(score)
             hits.append(record)
         return hits

@@ -18,6 +18,7 @@ from backend.rag.config import (
     EMBEDDING_MODEL,
     EMBEDDING_STATE_PATH,
     INDEX_MANIFEST_PATH,
+    LOW_MEMORY_MODE,
     METADATA_PATH,
     SIMILARITY_THRESHOLD,
     TOP_K,
@@ -26,6 +27,7 @@ from backend.rag.config import (
 )
 from backend.rag.embedder import LocalEmbedder
 from backend.rag.ingest import current_pdf_fingerprints, extract_pages
+from backend.rag.metadata import prune_metadata_record
 from backend.rag.vector_store import VectorStore
 
 
@@ -64,6 +66,7 @@ def _index_state() -> dict[str, Any]:
         "chunks_hash": _file_sha256(CHUNKS_PATH),
         "embedding_model": EMBEDDING_MODEL,
         "embedding_batch_size": EMBEDDING_BATCH_SIZE,
+        "low_memory_mode": LOW_MEMORY_MODE,
         "chunk_size_tokens": CHUNK_SIZE_TOKENS,
         "chunk_overlap_tokens": CHUNK_OVERLAP_TOKENS,
         "top_k": TOP_K,
@@ -93,17 +96,7 @@ def build_index(force: bool = False) -> None:
     embedder = LocalEmbedder(model_name=EMBEDDING_MODEL, batch_size=EMBEDDING_BATCH_SIZE)
     embeddings = embedder.encode(texts)
 
-    metadata = [
-        {
-            "chunk_id": chunk["chunk_id"],
-            "source_title": chunk["source_title"],
-            "page_start": chunk["page_start"],
-            "page_end": chunk["page_end"],
-            "source_url": chunk["source_url"],
-            "text": chunk["text"],
-        }
-        for chunk in chunks
-    ]
+    metadata = [prune_metadata_record(chunk) for chunk in chunks]
 
     store = VectorStore.build(embeddings=embeddings, metadata=metadata)
     store.save()

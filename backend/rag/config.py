@@ -26,15 +26,32 @@ INDEX_MANIFEST_PATH = INDEX_DIR / "index_manifest.json"
 INDEX_ARTIFACT_URL = os.getenv("INDEX_ARTIFACT_URL", "").strip()
 METADATA_ARTIFACT_URL = os.getenv("METADATA_ARTIFACT_URL", "").strip()
 
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_MODEL = os.getenv(
-    "EMBEDDING_MODEL",
-    os.getenv("RAG_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-MiniLM-L3-v2"
+LOW_MEMORY_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+
+def _env_flag(name: str, default: str = "false") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+LOW_MEMORY_MODE = _env_flag("LOW_MEMORY_MODE")
+_configured_embedding_model = os.getenv("EMBEDDING_MODEL") or os.getenv(
+    "RAG_EMBEDDING_MODEL"
+)
+EMBEDDING_MODEL = (
+    _configured_embedding_model.strip()
+    if _configured_embedding_model
+    else LOW_MEMORY_EMBEDDING_MODEL
+    if LOW_MEMORY_MODE
+    else DEFAULT_EMBEDDING_MODEL
 )
 EMBEDDING_BATCH_SIZE = int(
-    os.getenv("EMBEDDING_BATCH_SIZE", os.getenv("RAG_BATCH_SIZE", "32"))
+    os.getenv(
+        "EMBEDDING_BATCH_SIZE",
+        os.getenv("RAG_BATCH_SIZE", "16" if LOW_MEMORY_MODE else "32"),
+    )
 )
-MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", "6000"))
+MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", "5000"))
 
 TOP_K = int(os.getenv("TOP_K", os.getenv("RAG_TOP_K", "3")))
 SIMILARITY_THRESHOLD = float(

@@ -25,11 +25,9 @@ def _fake_metadata() -> list[dict[str, Any]]:
         {
             "chunk_id": f"chunk-{idx}",
             "source_title": "Synthetic ML Notes",
-            "file_name": "synthetic.pdf",
             "page_start": idx + 1,
             "page_end": idx + 1,
             "source_url": "https://example.com/synthetic.pdf",
-            "category": "Machine Learning fundamentals",
             "text": f"Synthetic chunk {idx}",
         }
         for idx in range(3)

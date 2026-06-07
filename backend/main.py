@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -14,9 +13,7 @@ from backend.rag.artifacts import (
 from backend.rag.config import (
     EMBEDDING_MODEL,
     INDEX_DIR,
-    INDEX_MANIFEST_PATH,
     METADATA_PATH,
-    RAW_PDFS_DIR,
     REFUSAL_MESSAGE,
     SIMILARITY_THRESHOLD,
     TOP_K,
@@ -31,6 +28,11 @@ from backend.rag.schemas import (
     HealthResponse,
     RetrievedChunk,
     SourceMetadata,
+)
+from backend.rag.metadata import (
+    count_metadata_records,
+    count_unique_sources,
+    source_summaries_from_metadata,
 )
 
 
@@ -71,28 +73,10 @@ def get_generator():
     return AnswerGenerator()
 
 
-def _source_manifest_path() -> Path:
-    return RAW_PDFS_DIR / "source_manifest.json"
-
-
-def _load_index_manifest() -> dict[str, Any]:
-    if not INDEX_MANIFEST_PATH.exists():
-        return {}
-
-    import json
-
-    return json.loads(INDEX_MANIFEST_PATH.read_text(encoding="utf-8"))
-
-
 def _load_sources() -> list[SourceMetadata]:
-    manifest_path = _source_manifest_path()
-    if manifest_path.exists():
-        import json
-
-        data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        return [SourceMetadata(**item) for item in data]
-
-    return []
+    if not METADATA_PATH.exists():
+        return []
+    return [SourceMetadata(**item) for item in source_summaries_from_metadata()]
 
 
 def _to_citation(chunk: dict[str, Any]) -> Citation:
@@ -122,9 +106,8 @@ def _to_retrieved_chunk(chunk: dict[str, Any]) -> RetrievedChunk:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     index_loaded = index_files_present()
-    manifest = _load_index_manifest()
-    total_chunks = int(manifest.get("vector_count", 0))
-    sources_count = len(_load_sources())
+    total_chunks = count_metadata_records() if METADATA_PATH.exists() else 0
+    sources_count = count_unique_sources() if METADATA_PATH.exists() else 0
     return HealthResponse(
         status="ok",
         backend_running=True,
@@ -144,12 +127,10 @@ def ready() -> dict[str, Any]:
     if not index_files_present():
         raise HTTPException(status_code=503, detail=INDEX_MISSING_MESSAGE)
 
-    manifest = _load_index_manifest()
-
     return {
         "status": "ready",
         "index_loaded": True,
-        "total_chunks": int(manifest.get("vector_count", 0)),
+        "total_chunks": count_metadata_records(),
         "embedding_model": EMBEDDING_MODEL,
     }
 
@@ -167,8 +148,10 @@ def ask(payload: AskRequest) -> AskResponse:
 
     try:
         retriever = get_retriever()
-    except FileNotFoundError:
-        raise HTTPException(status_code=503, detail=INDEX_MISSING_MESSAGE)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=INDEX_MISSING_MESSAGE) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     retrieval = retriever.retrieve(question)
     citations = [_to_citation(chunk) for chunk in retrieval.chunks]

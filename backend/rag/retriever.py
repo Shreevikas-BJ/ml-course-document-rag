@@ -28,7 +28,13 @@ class Retriever:
         self.top_k = top_k
         self.similarity_threshold = similarity_threshold
         self.vector_store = vector_store or VectorStore.load()
-        self.embedder = embedder or LocalEmbedder()
+        self._embedder = embedder
+
+    @property
+    def embedder(self) -> LocalEmbedder:
+        if self._embedder is None:
+            self._embedder = LocalEmbedder()
+        return self._embedder
 
     def retrieve(self, question: str) -> RetrievalResult:
         query_embedding = self.embedder.encode_query(question)

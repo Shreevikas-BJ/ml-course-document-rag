@@ -1,8 +1,5 @@
 from typing import Any
 
-import requests
-from openai import OpenAI
-
 from backend.rag.config import (
     GROQ_API_KEY,
     GROQ_MODEL,
@@ -108,6 +105,8 @@ class AnswerGenerator:
         if not OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY is required when LLM_PROVIDER=openai.")
 
+        from openai import OpenAI
+
         client = OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
             model=self.openai_model,
@@ -122,6 +121,8 @@ class AnswerGenerator:
     def _groq(self, user_prompt: str) -> str:
         if not GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY is required when LLM_PROVIDER=groq.")
+
+        from openai import OpenAI
 
         client = OpenAI(
             api_key=GROQ_API_KEY,
@@ -138,6 +139,8 @@ class AnswerGenerator:
         return response.choices[0].message.content or REFUSAL_MESSAGE
 
     def _ollama(self, user_prompt: str) -> str:
+        import requests
+
         response = requests.post(
             f"{self.ollama_base_url.rstrip('/')}/api/generate",
             json={
