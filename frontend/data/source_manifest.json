@@ -5,8 +5,434 @@
     "year": "2022",
     "url": "https://cs229.stanford.edu/main_notes.pdf",
     "local_filename": "stanford-cs229-main-notes.pdf",
-    "license_or_access_note": "Official Stanford course notes, publicly accessible for course use.",
-    "category": "Machine Learning fundamentals"
+    "source_type": "pdf",
+    "access_note": "Official Stanford course notes, publicly accessible for course use.",
+    "category": "ml_foundations",
+    "topics": [
+      "linear regression",
+      "logistic regression",
+      "generalized linear models",
+      "regularization",
+      "gradient descent",
+      "SVM",
+      "bias-variance tradeoff",
+      "overfitting",
+      "PCA",
+      "k-means"
+    ]
+  },
+  {
+    "title": "An Introduction to Statistical Learning with Python",
+    "authors_or_organization": "Gareth James, Daniela Witten, Trevor Hastie, Robert Tibshirani, Jonathan Taylor",
+    "year": "2023",
+    "url": "https://www.statlearning.com/",
+    "download_url": "https://hastie.su.domains/ISLP/ISLP_website.pdf.download.html",
+    "local_filename": "introduction-to-statistical-learning-python.pdf",
+    "source_type": "pdf",
+    "access_note": "Official free PDF linked from the authors' Statistical Learning website.",
+    "category": "statistical_learning",
+    "topics": [
+      "linear regression",
+      "classification",
+      "logistic regression",
+      "resampling",
+      "cross-validation",
+      "regularization",
+      "ridge regression",
+      "lasso regression",
+      "decision trees",
+      "random forest",
+      "boosting",
+      "SVM",
+      "PCA",
+      "clustering"
+    ]
+  },
+  {
+    "title": "An Introduction to Statistical Learning, Second Edition",
+    "authors_or_organization": "Gareth James, Daniela Witten, Trevor Hastie, Robert Tibshirani",
+    "year": "2023",
+    "url": "https://www.statlearning.com/",
+    "download_url": "https://hastie.su.domains/ISLR2/ISLRv2_corrected_June_2023.pdf.download.html",
+    "local_filename": "introduction-to-statistical-learning-second-edition.pdf",
+    "source_type": "pdf",
+    "access_note": "Official free PDF linked from the authors' Statistical Learning website.",
+    "category": "statistical_learning",
+    "topics": [
+      "linear regression",
+      "logistic regression",
+      "classification metrics",
+      "cross-validation",
+      "bias-variance tradeoff",
+      "regularization",
+      "ridge regression",
+      "lasso regression",
+      "tree-based methods",
+      "random forest",
+      "boosting",
+      "PCA",
+      "k-means"
+    ]
+  },
+  {
+    "title": "The Elements of Statistical Learning",
+    "authors_or_organization": "Trevor Hastie, Robert Tibshirani, Jerome Friedman",
+    "year": "2017",
+    "url": "https://hastie.su.domains/ElemStatLearn/",
+    "download_url": "https://hastie.su.domains/ElemStatLearn/printings/ESLII_print12_toc.pdf.download.html",
+    "local_filename": "elements-of-statistical-learning.pdf",
+    "source_type": "pdf",
+    "access_note": "Official free PDF from the authors' Stanford-hosted book website.",
+    "category": "statistical_learning",
+    "topics": [
+      "supervised learning",
+      "linear methods",
+      "logistic regression",
+      "basis expansion",
+      "regularization",
+      "model assessment",
+      "model selection",
+      "decision trees",
+      "boosting",
+      "random forest",
+      "SVM",
+      "PCA",
+      "clustering"
+    ]
+  },
+  {
+    "title": "A Course in Machine Learning",
+    "authors_or_organization": "Hal Daume III",
+    "year": "2017",
+    "url": "https://ciml.info/",
+    "download_url": "http://ciml.info/dl/v0_99/ciml-v0_99-all.pdf",
+    "local_filename": "a-course-in-machine-learning.pdf",
+    "source_type": "pdf",
+    "access_note": "Official open-access machine learning book from the author.",
+    "category": "ml_foundations",
+    "topics": [
+      "supervised learning",
+      "decision trees",
+      "nearest neighbors",
+      "linear models",
+      "perceptron",
+      "SVM",
+      "regularization",
+      "ensembles",
+      "clustering",
+      "feature engineering",
+      "evaluation metrics"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: K-Means Clustering",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/LectureNotes04.html",
+    "local_filename": "cornell-cs4780-k-means.html",
+    "source_type": "html",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "unsupervised_learning",
+    "topics": [
+      "k-means",
+      "clustering",
+      "unsupervised learning",
+      "loss functions"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Principal Component Analysis",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes05.pdf",
+    "local_filename": "cornell-cs4780-pca.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "unsupervised_learning",
+    "topics": [
+      "PCA",
+      "dimensionality reduction",
+      "eigenvectors",
+      "variance"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Logistic Regression",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes10.pdf",
+    "local_filename": "cornell-cs4780-logistic-regression.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "regression_and_classification",
+    "topics": [
+      "logistic regression",
+      "classification",
+      "maximum likelihood",
+      "cross entropy",
+      "gradient descent"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Linear Regression",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes12.pdf",
+    "local_filename": "cornell-cs4780-linear-regression.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "regression_and_classification",
+    "topics": [
+      "linear regression",
+      "least squares",
+      "loss functions",
+      "regularization",
+      "ridge regression"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Support Vector Machines",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes13.pdf",
+    "local_filename": "cornell-cs4780-svm.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "regression_and_classification",
+    "topics": [
+      "SVM",
+      "support vector machines",
+      "margin",
+      "kernels",
+      "classification"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Bias-Variance Tradeoff",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes17.pdf",
+    "local_filename": "cornell-cs4780-bias-variance.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "model_evaluation",
+    "topics": [
+      "bias-variance tradeoff",
+      "overfitting",
+      "underfitting",
+      "model complexity",
+      "generalization"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Decision Trees",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes19.pdf",
+    "local_filename": "cornell-cs4780-decision-trees.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "tree_models_and_boosting",
+    "topics": [
+      "decision trees",
+      "impurity",
+      "information gain",
+      "entropy",
+      "classification"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Bagging and Random Forests",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes21.pdf",
+    "local_filename": "cornell-cs4780-bagging-random-forests.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "tree_models_and_boosting",
+    "topics": [
+      "bagging",
+      "random forest",
+      "bootstrap aggregation",
+      "ensembles",
+      "decision trees"
+    ]
+  },
+  {
+    "title": "Cornell CS4780 Notes: Boosting",
+    "authors_or_organization": "Cornell University CS4780",
+    "year": "2022",
+    "url": "https://www.cs.cornell.edu/courses/cs4780/2022sp/notes/Notes22.pdf",
+    "local_filename": "cornell-cs4780-boosting.pdf",
+    "source_type": "pdf",
+    "access_note": "Official Cornell CS4780 public course notes.",
+    "category": "tree_models_and_boosting",
+    "topics": [
+      "boosting",
+      "AdaBoost",
+      "gradient boosting",
+      "ensembles",
+      "weak learners"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Linear Models",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/linear_model.html",
+    "local_filename": "sklearn-linear-models.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "regression_and_classification",
+    "topics": [
+      "linear regression",
+      "logistic regression",
+      "ridge regression",
+      "lasso regression",
+      "regularization",
+      "loss functions"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Decision Trees",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/tree.html",
+    "local_filename": "sklearn-decision-trees.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "tree_models_and_boosting",
+    "topics": [
+      "decision trees",
+      "tree impurity",
+      "Gini",
+      "entropy",
+      "classification",
+      "regression trees"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Ensemble Methods",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/ensemble.html",
+    "local_filename": "sklearn-ensemble-methods.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "tree_models_and_boosting",
+    "topics": [
+      "random forest",
+      "gradient boosting",
+      "AdaBoost",
+      "bagging",
+      "boosting",
+      "ensembles"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Support Vector Machines",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/svm.html",
+    "local_filename": "sklearn-svm.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "regression_and_classification",
+    "topics": [
+      "SVM",
+      "support vector machines",
+      "classification",
+      "regression",
+      "kernels"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Clustering",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/clustering.html",
+    "local_filename": "sklearn-clustering.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "unsupervised_learning",
+    "topics": [
+      "k-means",
+      "hierarchical clustering",
+      "clustering",
+      "unsupervised learning",
+      "anomaly detection"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Decomposing Signals in Components",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/decomposition.html",
+    "local_filename": "sklearn-decomposition.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "unsupervised_learning",
+    "topics": [
+      "PCA",
+      "principal component analysis",
+      "dimensionality reduction",
+      "matrix factorization",
+      "feature extraction"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Model Evaluation",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+    "local_filename": "sklearn-model-evaluation.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "model_evaluation",
+    "topics": [
+      "evaluation metrics",
+      "confusion matrix",
+      "precision",
+      "recall",
+      "F1",
+      "ROC-AUC",
+      "classification metrics"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Cross-Validation",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/cross_validation.html",
+    "local_filename": "sklearn-cross-validation.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "model_evaluation",
+    "topics": [
+      "cross-validation",
+      "train/test split",
+      "model selection",
+      "generalization",
+      "overfitting"
+    ]
+  },
+  {
+    "title": "scikit-learn User Guide: Preprocessing Data",
+    "authors_or_organization": "scikit-learn project",
+    "year": "2026",
+    "url": "https://scikit-learn.org/stable/modules/preprocessing.html",
+    "local_filename": "sklearn-preprocessing.html",
+    "source_type": "html",
+    "access_note": "Official scikit-learn user guide documentation.",
+    "category": "feature_engineering",
+    "topics": [
+      "feature engineering",
+      "preprocessing",
+      "scaling",
+      "normalization",
+      "encoding",
+      "imputation"
+    ]
   },
   {
     "title": "Attention Is All You Need",
@@ -14,8 +440,15 @@
     "year": "2017",
     "url": "https://arxiv.org/pdf/1706.03762",
     "local_filename": "attention-is-all-you-need.pdf",
-    "license_or_access_note": "arXiv open-access preprint.",
-    "category": "Modern AI / LLMs / Generative AI"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access preprint.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "transformers",
+      "attention",
+      "sequence modeling",
+      "deep learning"
+    ]
   },
   {
     "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
@@ -23,8 +456,15 @@
     "year": "2018",
     "url": "https://arxiv.org/pdf/1810.04805",
     "local_filename": "bert.pdf",
-    "license_or_access_note": "arXiv open-access preprint.",
-    "category": "Modern AI / LLMs / Generative AI"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access preprint.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "BERT",
+      "transformers",
+      "language models",
+      "pretraining"
+    ]
   },
   {
     "title": "Language Models are Few-Shot Learners",
@@ -32,8 +472,15 @@
     "year": "2020",
     "url": "https://arxiv.org/pdf/2005.14165",
     "local_filename": "gpt3-few-shot-learners.pdf",
-    "license_or_access_note": "arXiv open-access preprint.",
-    "category": "Modern AI / LLMs / Generative AI"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access preprint.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "GPT",
+      "few-shot learning",
+      "language models",
+      "scaling"
+    ]
   },
   {
     "title": "Llama 2: Open Foundation and Fine-Tuned Chat Models",
@@ -41,8 +488,15 @@
     "year": "2023",
     "url": "https://arxiv.org/pdf/2307.09288",
     "local_filename": "llama-2-technical-report.pdf",
-    "license_or_access_note": "arXiv open-access technical report.",
-    "category": "Modern AI / LLMs / Generative AI"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access technical report.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "Llama",
+      "language models",
+      "instruction tuning",
+      "chat models"
+    ]
   },
   {
     "title": "Retrieval-Augmented Generation for Large Language Models: A Survey",
@@ -50,8 +504,15 @@
     "year": "2023",
     "url": "https://arxiv.org/pdf/2312.10997",
     "local_filename": "rag-for-llms-survey.pdf",
-    "license_or_access_note": "arXiv open-access survey.",
-    "category": "RAG and AI agents"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access survey.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "RAG",
+      "retrieval augmented generation",
+      "vector search",
+      "language models"
+    ]
   },
   {
     "title": "A Survey on RAG Meeting LLMs: Towards Retrieval-Augmented Large Language Models",
@@ -59,8 +520,15 @@
     "year": "2024",
     "url": "https://arxiv.org/pdf/2405.06211",
     "local_filename": "rag-meeting-llms-survey.pdf",
-    "license_or_access_note": "arXiv open-access survey.",
-    "category": "RAG and AI agents"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access survey.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "RAG",
+      "retrieval augmented generation",
+      "language models",
+      "retrieval"
+    ]
   },
   {
     "title": "A Survey of Graph Retrieval-Augmented Generation for Customized Large Language Models",
@@ -68,8 +536,15 @@
     "year": "2025",
     "url": "https://arxiv.org/pdf/2501.13958",
     "local_filename": "graph-rag-survey.pdf",
-    "license_or_access_note": "arXiv open-access survey.",
-    "category": "RAG and AI agents"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access survey.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "Graph RAG",
+      "retrieval augmented generation",
+      "knowledge graphs",
+      "language models"
+    ]
   },
   {
     "title": "The Rise and Potential of Large Language Model Based Agents: A Survey",
@@ -77,8 +552,15 @@
     "year": "2023",
     "url": "https://arxiv.org/pdf/2309.07864",
     "local_filename": "llm-agents-survey.pdf",
-    "license_or_access_note": "arXiv open-access survey.",
-    "category": "RAG and AI agents"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access survey.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "AI agents",
+      "LLM agents",
+      "planning",
+      "tool use"
+    ]
   },
   {
     "title": "Large Language Models: A Survey",
@@ -86,8 +568,15 @@
     "year": "2023",
     "url": "https://arxiv.org/pdf/2303.18223",
     "local_filename": "large-language-models-survey.pdf",
-    "license_or_access_note": "arXiv open-access survey.",
-    "category": "Modern AI / LLMs / Generative AI"
+    "source_type": "pdf",
+    "access_note": "arXiv open-access survey.",
+    "category": "modern_ai_llms_rag",
+    "topics": [
+      "language models",
+      "pretraining",
+      "fine-tuning",
+      "evaluation"
+    ]
   },
   {
     "title": "Artificial Intelligence Risk Management Framework (AI RMF 1.0)",
@@ -95,8 +584,15 @@
     "year": "2023",
     "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
     "local_filename": "nist-ai-rmf-1-0.pdf",
-    "license_or_access_note": "Official NIST publication, publicly accessible.",
-    "category": "Responsible AI / Safety / Governance"
+    "source_type": "pdf",
+    "access_note": "Official NIST publication, publicly accessible.",
+    "category": "responsible_ai",
+    "topics": [
+      "responsible AI",
+      "risk management",
+      "governance",
+      "trustworthy AI"
+    ]
   },
   {
     "title": "AI RMF Generative AI Profile",
@@ -104,8 +600,15 @@
     "year": "2024",
     "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
     "local_filename": "nist-ai-rmf-generative-ai-profile.pdf",
-    "license_or_access_note": "Official NIST publication, publicly accessible.",
-    "category": "Responsible AI / Safety / Governance"
+    "source_type": "pdf",
+    "access_note": "Official NIST publication, publicly accessible.",
+    "category": "responsible_ai",
+    "topics": [
+      "generative AI",
+      "risk management",
+      "responsible AI",
+      "governance"
+    ]
   },
   {
     "title": "OWASP Top 10 for LLM Applications 2025",
@@ -113,8 +616,15 @@
     "year": "2025",
     "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/assets/PDF/OWASP-Top-10-for-LLMs-v2025.pdf",
     "local_filename": "owasp-top-10-llm-applications-2025.pdf",
-    "license_or_access_note": "Official OWASP project PDF, publicly accessible.",
-    "category": "Responsible AI / Safety / Governance"
+    "source_type": "pdf",
+    "access_note": "Official OWASP project PDF, publicly accessible.",
+    "category": "responsible_ai",
+    "topics": [
+      "LLM security",
+      "prompt injection",
+      "application security",
+      "responsible AI"
+    ]
   },
   {
     "title": "AI Index Report 2025",
@@ -122,7 +632,14 @@
     "year": "2025",
     "url": "https://hai.stanford.edu/assets/files/hai_ai_index_report_2025.pdf",
     "local_filename": "stanford-ai-index-2025.pdf",
-    "license_or_access_note": "Official Stanford HAI AI Index report PDF, publicly accessible.",
-    "category": "Responsible AI / Safety / Governance"
+    "source_type": "pdf",
+    "access_note": "Official Stanford HAI AI Index report PDF, publicly accessible.",
+    "category": "responsible_ai",
+    "topics": [
+      "AI index",
+      "AI trends",
+      "AI governance",
+      "responsible AI"
+    ]
   }
 ]

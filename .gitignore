@@ -18,7 +18,9 @@ node_modules/
 .next/
 out/
 dist/
+*.tsbuildinfo
 frontend/data/raw_pdfs/
+frontend/data/raw_html/
 frontend/data/processed/
 npm-debug.log*
 yarn-debug.log*

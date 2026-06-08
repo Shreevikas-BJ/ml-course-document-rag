@@ -18,6 +18,10 @@ type MatchedDocument = {
   similarity: number;
 };
 
+type CandidateDocument = Omit<MatchedDocument, "similarity"> & {
+  embedding?: string | number[] | null;
+};
+
 type Citation = {
   chunk_id: string;
   source_title: string;
@@ -85,6 +89,146 @@ function normalizeJinaSimilarity(rawSimilarity: number) {
   return Math.max(0, Math.min(1, normalized));
 }
 
+function parsePgVector(value: string | number[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return value.map(Number);
+  }
+  if (!value) {
+    return [];
+  }
+  return value
+    .replace(/^\[|\]$/g, "")
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter(Number.isFinite);
+}
+
+function cosineSimilarity(left: number[], right: number[]) {
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    dot += left[index] * right[index];
+    leftNorm += left[index] * left[index];
+    rightNorm += right[index] * right[index];
+  }
+
+  if (!leftNorm || !rightNorm) {
+    return 0;
+  }
+
+  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+}
+
+const STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "between",
+  "difference",
+  "explain",
+  "is",
+  "the",
+  "what"
+]);
+
+const TOPIC_PHRASES = [
+  "linear regression",
+  "logistic regression",
+  "gradient boosting",
+  "bagging",
+  "boosting",
+  "random forest",
+  "decision tree",
+  "impurity",
+  "regularization",
+  "ridge regression",
+  "lasso regression",
+  "principal component analysis",
+  "pca",
+  "k-means",
+  "k means",
+  "clustering",
+  "cross-validation",
+  "cross validation",
+  "bias-variance",
+  "bias variance",
+  "overfitting",
+  "precision",
+  "recall",
+  "supervised",
+  "unsupervised",
+  "feature engineering",
+  "evaluation metrics",
+  "svm",
+  "support vector"
+];
+
+function searchTerms(question: string) {
+  const normalized = question.toLowerCase().replace(/[^a-z0-9+\-\s]/g, " ");
+  const terms = new Set<string>();
+
+  TOPIC_PHRASES.forEach((phrase) => {
+    if (normalized.includes(phrase)) {
+      terms.add(phrase);
+    }
+  });
+
+  normalized
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 2 && !STOP_WORDS.has(word))
+    .forEach((word) => terms.add(word));
+
+  if (terms.has("pca")) {
+    terms.add("principal component");
+  }
+  if (terms.has("k-means")) {
+    terms.add("k means");
+  }
+  if (terms.has("impurity")) {
+    terms.add("node impurity");
+    terms.add("gini");
+    terms.add("entropy");
+    terms.add("information gain");
+  }
+
+  return [...terms].slice(0, 10);
+}
+
+function ilikeFilter(column: string, term: string) {
+  const safeTerm = term.replace(/[%*,]/g, " ").replace(/\s+/g, " ").trim();
+  return safeTerm ? `${column}.ilike.%${safeTerm}%` : null;
+}
+
+function keywordBoost(row: Omit<CandidateDocument, "embedding">, terms: string[]) {
+  const haystack = `${row.source_title} ${row.category ?? ""} ${row.content}`.toLowerCase();
+  let boost = 0;
+
+  terms.forEach((term) => {
+    const normalizedTerm = term.toLowerCase();
+    const alternateTerm = normalizedTerm.replace(/-/g, " ");
+    if (normalizedTerm.includes(" ") || normalizedTerm.includes("-")) {
+      if (haystack.includes(normalizedTerm) || haystack.includes(alternateTerm)) {
+        boost += 0.08;
+      }
+      return;
+    }
+
+    if (haystack.includes(normalizedTerm)) {
+      boost += 0.02;
+    }
+  });
+
+  return Math.min(boost, 0.16);
+}
+
+function looksLikeHtmlArtifact(text: string) {
+  return /<span|<\/span|class=|&lt;span/i.test(text);
+}
+
 async function embedQuestion(question: string) {
   const provider = process.env.EMBEDDING_PROVIDER?.trim().toLowerCase() || "jina";
   if (provider !== "jina") {
@@ -117,7 +261,59 @@ async function embedQuestion(question: string) {
   return embedding;
 }
 
-async function retrieveDocuments(questionEmbedding: number[]) {
+async function retrieveLexicalCandidates(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  question: string,
+  questionEmbedding: number[]
+) {
+  const terms = searchTerms(question);
+  if (!terms.length) {
+    return [];
+  }
+
+  const phraseTerms = terms.filter((term) => term.includes(" ") || term.includes("-"));
+  const candidateRows = new Map<string, CandidateDocument>();
+
+  for (const termGroup of [phraseTerms, terms]) {
+    const filters = termGroup.flatMap((term) =>
+      [ilikeFilter("content", term), ilikeFilter("source_title", term)].filter(Boolean)
+    );
+
+    if (!filters.length) {
+      continue;
+    }
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select("id, content, source_title, source_url, page_start, page_end, category, embedding")
+      .or(filters.join(","))
+      .limit(60);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    ((data ?? []) as CandidateDocument[]).forEach((row) => {
+      candidateRows.set(row.id, row);
+    });
+  }
+
+  return [...candidateRows.values()]
+    .map((row) => {
+      const { embedding, ...document } = row;
+      const rawSimilarity = cosineSimilarity(questionEmbedding, parsePgVector(embedding));
+      return {
+        ...document,
+        similarity: Math.min(
+          1,
+          normalizeJinaSimilarity(rawSimilarity) + keywordBoost(document, terms)
+        )
+      };
+    })
+    .filter((row) => Number.isFinite(row.similarity) && !looksLikeHtmlArtifact(row.content));
+}
+
+async function retrieveDocuments(question: string, questionEmbedding: number[]) {
   const topK = numberEnv("TOP_K", 3);
   const threshold = numberEnv("SIMILARITY_THRESHOLD", 0.6);
   const supabase = getSupabaseClient();
@@ -132,11 +328,28 @@ async function retrieveDocuments(questionEmbedding: number[]) {
     throw new Error(error.message);
   }
 
-  const rows = ((data ?? []) as MatchedDocument[])
+  const vectorRows = ((data ?? []) as MatchedDocument[])
+    .filter((row) => !looksLikeHtmlArtifact(row.content))
     .map((row) => ({
       ...row,
       similarity: normalizeJinaSimilarity(Number(row.similarity))
-    }))
+    }));
+  const lexicalRows = await retrieveLexicalCandidates(
+    supabase,
+    question,
+    questionEmbedding
+  );
+  const byId = new Map<string, MatchedDocument>();
+
+  [...vectorRows, ...lexicalRows].forEach((row) => {
+    const existing = byId.get(row.id);
+    if (!existing || row.similarity > existing.similarity) {
+      byId.set(row.id, row);
+    }
+  });
+
+  const rows = [...byId.values()]
+    .sort((left, right) => right.similarity - left.similarity)
     .filter((row) => Number(row.similarity) >= threshold);
 
   return {
@@ -193,6 +406,8 @@ async function generateAnswer(question: string, chunks: MatchedDocument[]) {
 Rules:
 - Answer only from the provided retrieved context.
 - Do not use outside knowledge.
+- The retrieved context has already passed the relevance threshold. If it contains formulas, algorithm steps, properties, or examples related to the question, synthesize a concise grounded answer from those details.
+- Do not refuse merely because the context is technical or partial.
 - If the context is insufficient, respond exactly with:
   ${REFUSAL_MESSAGE}
 - Include citations using the provided citation labels.
@@ -244,6 +459,10 @@ function toRetrievedChunk(chunk: MatchedDocument): RetrievedChunk {
   };
 }
 
+function isRefusalAnswer(answer: string) {
+  return answer === REFUSAL_MESSAGE || answer.startsWith("Not enough information");
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
@@ -257,7 +476,7 @@ export async function POST(request: Request) {
     }
 
     const embedding = await embedQuestion(question);
-    const { chunks, topK, threshold } = await retrieveDocuments(embedding);
+    const { chunks, topK, threshold } = await retrieveDocuments(question, embedding);
     const citations = chunks.map(toCitation);
     const retrievedChunks = chunks.map(toRetrievedChunk);
     const similarityScores = citations.map((citation) => citation.similarity_score);
@@ -277,7 +496,7 @@ export async function POST(request: Request) {
     }
 
     const answer = await generateAnswer(question, chunks);
-    const refusal = answer === REFUSAL_MESSAGE;
+    const refusal = isRefusalAnswer(answer);
 
     return NextResponse.json({
       answer,

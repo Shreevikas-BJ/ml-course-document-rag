@@ -18,8 +18,8 @@ flowchart LR
   Route --> User
 
   subgraph Local["Local ingestion only"]
-    Manifest["frontend/data/source_manifest.json"] --> PDFs["Open-access PDFs"]
-    PDFs --> Extract["PDF page extraction"]
+    Manifest["frontend/data/source_manifest.json"] --> Sources["Open-access PDFs and official docs pages"]
+    Sources --> Extract["PDF page extraction + HTML text extraction"]
     Extract --> Chunks["Chunking + content hashes"]
     Chunks --> IngestEmbeddings["Jina AI embeddings"]
     IngestEmbeddings --> Supabase
@@ -61,6 +61,7 @@ frontend/
 - `JINA_EMBEDDING_MODEL=jina-embeddings-v3`
 - Jina v3 embeddings are stored as `vector(1024)`
 - The API normalizes Jina cosine similarity into a `0` to `1` score before applying `SIMILARITY_THRESHOLD`.
+- The API merges Supabase vector matches with a small exact lexical candidate set for foundation ML terms, then reranks candidates before returning `TOP_K=3`.
 
 If no retrieved chunk has similarity `>= 0.6`, `/api/ask` returns:
 
@@ -85,6 +86,18 @@ match_documents(query_embedding vector(1024), match_threshold float, match_count
 It returns `id`, `content`, `source_title`, `source_url`, `page_start`, `page_end`, `category`, and `similarity`.
 
 If you previously created the Supabase table with OpenAI's `vector(1536)` dimension, recreate the `documents` table before reingesting. For an empty old table, run [frontend/supabase/reset_jina_schema.sql](frontend/supabase/reset_jina_schema.sql) in the Supabase SQL editor. Existing OpenAI embeddings cannot be mixed with Jina `vector(1024)` embeddings.
+
+If the schema changes in the future, run the reset SQL only when you are ready to delete and rebuild `public.documents`; then rerun ingestion from the manifest.
+
+## Knowledge Base Coverage
+
+- ML Foundations: Stanford CS229, Cornell CS4780 notes, and A Course in Machine Learning cover supervised vs unsupervised learning, gradient descent, SVMs, feature engineering, overfitting, and core algorithms.
+- Statistical Learning: ISLR with Python, ISLR Second Edition, and The Elements of Statistical Learning cover regression, classification, model selection, regularization, trees, boosting, PCA, and clustering.
+- Tree Models and Boosting: Cornell CS4780 notes, ISLR/ESL, and scikit-learn docs cover decision trees, impurity, bagging, random forests, AdaBoost, gradient boosting, and boosting vs bagging.
+- Regression and Classification: Stanford CS229, Cornell CS4780, ISLR/ESL, and scikit-learn cover linear regression, logistic regression, ridge, lasso, maximum likelihood, loss functions, and SVMs.
+- Unsupervised Learning: Stanford CS229, Cornell CS4780, ISLR/ESL, and scikit-learn cover k-means, clustering, PCA, dimensionality reduction, and related preprocessing.
+- Model Evaluation: scikit-learn, ISLR/ESL, and Cornell notes cover train/test splits, cross-validation, precision, recall, F1, ROC-AUC, confusion matrices, bias-variance, overfitting, and underfitting.
+- Modern AI/LLMs/RAG: arXiv papers and surveys cover transformers, BERT/GPT/Llama, RAG, Graph RAG, LLM agents, responsible AI, AI safety, and governance.
 
 ## Local Environment
 
@@ -129,9 +142,9 @@ cd frontend
 npm run ingest
 ```
 
-The script reads [frontend/data/source_manifest.json](frontend/data/source_manifest.json), downloads legal/open-access PDFs into ignored local storage, extracts page text, chunks content, embeds chunks with Jina AI, skips existing `content_hash` rows, retries failed embedding batches, waits briefly between batches, and uploads batches to Supabase.
+The script reads [frontend/data/source_manifest.json](frontend/data/source_manifest.json), downloads legal/open-access PDFs and official documentation pages into ignored local storage, extracts text, chunks content, embeds chunks with Jina AI, skips existing `content_hash` rows, retries failed embedding batches, waits between batches to respect Jina rate limits, and uploads batches to Supabase.
 
-The current manifest includes Stanford AI Index 2025, NIST AI RMF, NIST Generative AI Profile, OWASP LLM Top 10, Stanford CS229 notes, Attention Is All You Need, BERT, RAG surveys, LLM surveys, and agentic AI survey material.
+The current manifest includes Stanford CS229, Cornell CS4780 notes, ISLR, ESL, A Course in Machine Learning, scikit-learn user-guide sections, Stanford AI Index 2025, NIST AI RMF, NIST Generative AI Profile, OWASP LLM Top 10, Attention Is All You Need, BERT, RAG surveys, LLM surveys, and agentic AI survey material.
 
 ## API Behavior
 
@@ -158,7 +171,7 @@ Response:
 }
 ```
 
-The route embeds the question with Jina AI, calls Supabase `match_documents`, refuses unsupported questions, and sends only retrieved context to Groq.
+The route embeds the question with Jina AI, calls Supabase `match_documents`, merges in exact keyword candidates for foundation ML terms, refuses unsupported questions, and sends only retrieved context to Groq.
 
 ## Vercel Deployment
 
@@ -195,6 +208,13 @@ Build check:
 cd frontend
 npm install
 npm run build
+```
+
+Foundation ML verification after ingestion and while `npm run dev` is running:
+
+```powershell
+cd frontend
+npm run test:foundation
 ```
 
 Local API smoke test after ingestion:
