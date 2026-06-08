@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -33,6 +35,38 @@ type Citation = {
 
 type RetrievedChunk = Citation & {
   text: string;
+};
+
+type Timings = {
+  embedding_ms: number;
+  retrieval_ms: number;
+  generation_ms: number;
+  total_ms: number;
+};
+
+type AskPayload = {
+  answer: string;
+  citations: Citation[];
+  retrieved_chunks: RetrievedChunk[];
+  similarity_scores: number[];
+  refusal: boolean;
+  best_score: number | null;
+  top_k: number;
+  similarity_threshold: number;
+  cache_hit: boolean;
+  embedding_cache_hit: boolean;
+  timings: Timings;
+};
+
+type CachedQueryRow = {
+  answer: string;
+  citations: unknown;
+  retrieved_chunks: unknown;
+  refusal: boolean;
+};
+
+type CachedEmbeddingRow = {
+  embedding: string | number[] | null;
 };
 
 type JinaEmbeddingResponse = {
@@ -71,6 +105,14 @@ function numberEnv(name: string, fallback: number) {
   return parsed;
 }
 
+function booleanEnv(name: string, fallback: boolean) {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+  return ["1", "true", "yes", "on"].includes(raw);
+}
+
 function getSupabaseClient() {
   return createClient(
     env("SUPABASE_URL"),
@@ -82,6 +124,47 @@ function getSupabaseClient() {
       }
     }
   );
+}
+
+function elapsedSince(start: number) {
+  return Math.max(0, Math.round(performance.now() - start));
+}
+
+function zeroTimings(totalStart: number): Timings {
+  return {
+    embedding_ms: 0,
+    retrieval_ms: 0,
+    generation_ms: 0,
+    total_ms: elapsedSince(totalStart)
+  };
+}
+
+function normalizeQuestion(question: string) {
+  return question
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[?!.,;:]+$/g, "")
+    .trim();
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function jsonArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as T[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 function normalizeJinaSimilarity(rawSimilarity: number) {
@@ -261,6 +344,128 @@ async function embedQuestion(question: string) {
   return embedding;
 }
 
+async function readQueryCache(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  questionHash: string,
+  totalStart: number
+) {
+  if (!booleanEnv("CACHE_ENABLED", true)) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("query_cache")
+    .select("answer, citations, retrieved_chunks, refusal")
+    .eq("question_hash", questionHash)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`Query cache skipped: ${error.message}`);
+    return null;
+  }
+  if (!data) {
+    return null;
+  }
+
+  const row = data as CachedQueryRow;
+  const citations = jsonArray<Citation>(row.citations);
+  const retrievedChunks = jsonArray<RetrievedChunk>(row.retrieved_chunks);
+  const similarityScores = citations.map((citation) => Number(citation.similarity_score));
+
+  return {
+    answer: row.answer,
+    citations,
+    retrieved_chunks: retrievedChunks,
+    similarity_scores: similarityScores,
+    refusal: row.refusal,
+    best_score: similarityScores[0] ?? null,
+    top_k: numberEnv("TOP_K", 3),
+    similarity_threshold: numberEnv("SIMILARITY_THRESHOLD", 0.6),
+    cache_hit: true,
+    embedding_cache_hit: false,
+    timings: zeroTimings(totalStart)
+  } satisfies AskPayload;
+}
+
+async function saveQueryCache(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  questionHash: string,
+  normalizedQuestion: string,
+  payload: AskPayload
+) {
+  if (!booleanEnv("CACHE_ENABLED", true)) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("query_cache")
+    .upsert(
+      {
+        question_hash: questionHash,
+        normalized_question: normalizedQuestion,
+        answer: payload.answer,
+        citations: payload.citations,
+        retrieved_chunks: payload.retrieved_chunks,
+        refusal: payload.refusal
+      },
+      { onConflict: "question_hash" }
+    );
+
+  if (error) {
+    console.warn(`Query cache save skipped: ${error.message}`);
+  }
+}
+
+async function getQuestionEmbedding(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  normalizedQuestion: string,
+  questionHash: string
+) {
+  if (booleanEnv("CACHE_ENABLED", true)) {
+    const { data, error } = await supabase
+      .from("embedding_cache")
+      .select("embedding")
+      .eq("question_hash", questionHash)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`Embedding cache lookup skipped: ${error.message}`);
+    } else if (data) {
+      const embedding = parsePgVector((data as CachedEmbeddingRow).embedding);
+      if (embedding.length === JINA_EMBEDDING_DIMENSIONS) {
+        return {
+          embedding,
+          embeddingCacheHit: true
+        };
+      }
+    }
+  }
+
+  const embedding = await embedQuestion(normalizedQuestion);
+
+  if (booleanEnv("CACHE_ENABLED", true)) {
+    const { error } = await supabase
+      .from("embedding_cache")
+      .upsert(
+        {
+          question_hash: questionHash,
+          normalized_question: normalizedQuestion,
+          embedding
+        },
+        { onConflict: "question_hash" }
+      );
+
+    if (error) {
+      console.warn(`Embedding cache save skipped: ${error.message}`);
+    }
+  }
+
+  return {
+    embedding,
+    embeddingCacheHit: false
+  };
+}
+
 async function retrieveLexicalCandidates(
   supabase: ReturnType<typeof getSupabaseClient>,
   question: string,
@@ -313,10 +518,13 @@ async function retrieveLexicalCandidates(
     .filter((row) => Number.isFinite(row.similarity) && !looksLikeHtmlArtifact(row.content));
 }
 
-async function retrieveDocuments(question: string, questionEmbedding: number[]) {
+async function retrieveDocuments(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  question: string,
+  questionEmbedding: number[]
+) {
   const topK = numberEnv("TOP_K", 3);
   const threshold = numberEnv("SIMILARITY_THRESHOLD", 0.6);
-  const supabase = getSupabaseClient();
 
   const { data, error } = await supabase.rpc("match_documents", {
     query_embedding: questionEmbedding,
@@ -370,7 +578,11 @@ function citationLabel(chunk: MatchedDocument, index: number) {
 }
 
 function formatContext(chunks: MatchedDocument[]) {
-  const maxChars = numberEnv("MAX_CONTEXT_CHARS", 5000);
+  const maxChars = numberEnv("MAX_CONTEXT_CHARS", 3000);
+  const perChunkLimit = Math.max(
+    500,
+    Math.floor(maxChars / Math.max(chunks.length, 1))
+  );
   const blocks: string[] = [];
   let remaining = maxChars;
 
@@ -380,20 +592,24 @@ function formatContext(chunks: MatchedDocument[]) {
     }
 
     const label = citationLabel(chunk, index + 1);
-    let text = chunk.content.trim();
-    if (text.length > remaining) {
-      text = `${text.slice(0, remaining).replace(/\s+\S*$/, "")}...`;
+    const metadata = [
+      label,
+      `Source URL: ${chunk.source_url || "Unavailable"}`,
+      `Similarity: ${Number(chunk.similarity).toFixed(4)}`
+    ].join("\n");
+    const textBudget = Math.min(perChunkLimit, remaining - metadata.length - 1);
+    if (textBudget <= 0) {
+      return;
     }
 
-    blocks.push(
-      [
-        label,
-        `Source URL: ${chunk.source_url || "Unavailable"}`,
-        `Similarity: ${Number(chunk.similarity).toFixed(4)}`,
-        text
-      ].join("\n")
-    );
-    remaining -= text.length;
+    let text = chunk.content.trim();
+    if (text.length > textBudget) {
+      text = `${text.slice(0, textBudget).replace(/\s+\S*$/, "")}...`;
+    }
+
+    const block = [metadata, text].join("\n");
+    blocks.push(block);
+    remaining -= block.length;
   });
 
   return blocks.join("\n\n---\n\n");
@@ -407,6 +623,7 @@ Rules:
 - Answer only from the provided retrieved context.
 - Do not use outside knowledge.
 - The retrieved context has already passed the relevance threshold. If it contains formulas, algorithm steps, properties, or examples related to the question, synthesize a concise grounded answer from those details.
+- Answer in 5-8 concise sentences unless the user asks for a detailed explanation.
 - Do not refuse merely because the context is technical or partial.
 - If the context is insufficient, respond exactly with:
   ${REFUSAL_MESSAGE}
@@ -422,7 +639,8 @@ Rules:
     },
     body: JSON.stringify({
       model: env("GROQ_MODEL", "llama-3.1-8b-instant"),
-      temperature: 0,
+      max_tokens: numberEnv("GROQ_MAX_TOKENS", 400),
+      temperature: 0.2,
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -464,6 +682,8 @@ function isRefusalAnswer(answer: string) {
 }
 
 export async function POST(request: Request) {
+  const totalStart = performance.now();
+
   try {
     const body = await request.json().catch(() => null);
     const question = typeof body?.question === "string" ? body.question.trim() : "";
@@ -475,15 +695,38 @@ export async function POST(request: Request) {
       );
     }
 
-    const embedding = await embedQuestion(question);
-    const { chunks, topK, threshold } = await retrieveDocuments(question, embedding);
+    const normalizedQuestion =
+      normalizeQuestion(question) || question.toLowerCase().trim();
+    const questionHash = sha256(normalizedQuestion);
+    const supabase = getSupabaseClient();
+    const cachedAnswer = await readQueryCache(supabase, questionHash, totalStart);
+
+    if (cachedAnswer) {
+      return NextResponse.json(cachedAnswer);
+    }
+
+    const embeddingStart = performance.now();
+    const { embedding, embeddingCacheHit } = await getQuestionEmbedding(
+      supabase,
+      normalizedQuestion,
+      questionHash
+    );
+    const embeddingMs = elapsedSince(embeddingStart);
+
+    const retrievalStart = performance.now();
+    const { chunks, topK, threshold } = await retrieveDocuments(
+      supabase,
+      question,
+      embedding
+    );
+    const retrievalMs = elapsedSince(retrievalStart);
     const citations = chunks.map(toCitation);
     const retrievedChunks = chunks.map(toRetrievedChunk);
     const similarityScores = citations.map((citation) => citation.similarity_score);
     const bestScore = similarityScores[0] ?? null;
 
     if (!chunks.length) {
-      return NextResponse.json({
+      const refusalPayload = {
         answer: REFUSAL_MESSAGE,
         citations,
         retrieved_chunks: retrievedChunks,
@@ -491,14 +734,34 @@ export async function POST(request: Request) {
         refusal: true,
         best_score: bestScore,
         top_k: topK,
-        similarity_threshold: threshold
-      });
+        similarity_threshold: threshold,
+        cache_hit: false,
+        embedding_cache_hit: embeddingCacheHit,
+        timings: {
+          embedding_ms: embeddingMs,
+          retrieval_ms: retrievalMs,
+          generation_ms: 0,
+          total_ms: elapsedSince(totalStart)
+        }
+      } satisfies AskPayload;
+
+      await saveQueryCache(
+        supabase,
+        questionHash,
+        normalizedQuestion,
+        refusalPayload
+      );
+
+      refusalPayload.timings.total_ms = elapsedSince(totalStart);
+      return NextResponse.json(refusalPayload);
     }
 
+    const generationStart = performance.now();
     const answer = await generateAnswer(question, chunks);
+    const generationMs = elapsedSince(generationStart);
     const refusal = isRefusalAnswer(answer);
 
-    return NextResponse.json({
+    const payload = {
       answer,
       citations,
       retrieved_chunks: retrievedChunks,
@@ -506,8 +769,21 @@ export async function POST(request: Request) {
       refusal,
       best_score: bestScore,
       top_k: topK,
-      similarity_threshold: threshold
-    });
+      similarity_threshold: threshold,
+      cache_hit: false,
+      embedding_cache_hit: embeddingCacheHit,
+      timings: {
+        embedding_ms: embeddingMs,
+        retrieval_ms: retrievalMs,
+        generation_ms: generationMs,
+        total_ms: elapsedSince(totalStart)
+      }
+    } satisfies AskPayload;
+
+    await saveQueryCache(supabase, questionHash, normalizedQuestion, payload);
+
+    payload.timings.total_ms = elapsedSince(totalStart);
+    return NextResponse.json(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed";
     return NextResponse.json({ error: message }, { status: 500 });

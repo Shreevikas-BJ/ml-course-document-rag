@@ -15,6 +15,14 @@ function pageLabel(citation: Citation) {
   return "page unavailable";
 }
 
+function chunkPreview(text: string) {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (compact.length <= 760) {
+    return compact;
+  }
+  return `${compact.slice(0, 760).replace(/\s+\S*$/, "")}...`;
+}
+
 export function SourcesList({ citations, retrievedChunks }: SourcesListProps) {
   if (!citations.length && !retrievedChunks.length) {
     return null;
@@ -37,9 +45,12 @@ export function SourcesList({ citations, retrievedChunks }: SourcesListProps) {
                   <strong>{citation.source_title}</strong>
                   <span>{pageLabel(citation)}</span>
                 </div>
-                <b>{citation.similarity_score.toFixed(3)}</b>
+                <b>
+                  <span>Score</span>
+                  {citation.similarity_score.toFixed(3)}
+                </b>
               </summary>
-              {chunk ? <p>{chunk.text}</p> : null}
+              {chunk ? <p>{chunkPreview(chunk.text)}</p> : null}
               {citation.source_url ? (
                 <a href={citation.source_url} target="_blank" rel="noreferrer">
                   <ExternalLink size={14} aria-hidden="true" />

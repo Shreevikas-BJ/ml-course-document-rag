@@ -56,7 +56,9 @@ frontend/
 
 - `TOP_K=3`
 - `SIMILARITY_THRESHOLD=0.6`
-- `MAX_CONTEXT_CHARS=5000`
+- `MAX_CONTEXT_CHARS=3000`
+- `GROQ_MAX_TOKENS=400`
+- `CACHE_ENABLED=true`
 - `EMBEDDING_PROVIDER=jina`
 - `JINA_EMBEDDING_MODEL=jina-embeddings-v3`
 - Jina v3 embeddings are stored as `vector(1024)`
@@ -74,8 +76,9 @@ Not enough information in the indexed AI/ML documents to answer confidently.
 1. Create a Supabase project.
 2. Open the Supabase SQL editor.
 3. Run [frontend/supabase/schema.sql](frontend/supabase/schema.sql).
-4. Confirm the `documents` table exists.
-5. Confirm the `match_documents` function exists.
+4. Run [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql).
+5. Confirm the `documents`, `query_cache`, and `embedding_cache` tables exist.
+6. Confirm the `match_documents` function exists.
 
 The schema enables pgvector, creates `documents`, adds a vector index, and defines:
 
@@ -88,6 +91,34 @@ It returns `id`, `content`, `source_title`, `source_url`, `page_start`, `page_en
 If you previously created the Supabase table with OpenAI's `vector(1536)` dimension, recreate the `documents` table before reingesting. For an empty old table, run [frontend/supabase/reset_jina_schema.sql](frontend/supabase/reset_jina_schema.sql) in the Supabase SQL editor. Existing OpenAI embeddings cannot be mixed with Jina `vector(1024)` embeddings.
 
 If the schema changes in the future, run the reset SQL only when you are ready to delete and rebuild `public.documents`; then rerun ingestion from the manifest.
+
+## Token and Latency Optimization
+
+- `MAX_CONTEXT_CHARS=3000` limits the total retrieved context sent to Groq while preserving full citations in the API response.
+- `GROQ_MAX_TOKENS=400` keeps generated answers concise; the prompt asks for 5-8 sentences unless the user requests more detail.
+- `CACHE_ENABLED=true` enables Supabase-backed caching for repeated questions.
+- `query_cache` stores normalized question hashes, final answers, citations, retrieved chunks, refusal status, and creation time.
+- `embedding_cache` stores normalized question hashes and Jina `vector(1024)` embeddings so repeated normalized questions avoid another Jina call.
+- `/api/ask` returns timing logs for embedding, retrieval, generation, and total request time.
+
+Apply the cache tables by running [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql) in the Supabase SQL editor. The first time a question is asked, the route calls Jina, Supabase vector search, and Groq. Repeating the same normalized question returns from `query_cache` immediately. If only the embedding is cached, the route skips Jina and still performs retrieval and generation.
+
+To verify cache behavior locally, run the app and then:
+
+```powershell
+cd frontend
+npm run test:cache
+```
+
+The second request for the same normalized question should return `cache_hit=true`.
+
+## Frontend UX Improvements
+
+- The Q&A surface uses improved spacing, responsive alignment, and clearer visual hierarchy.
+- Answers include compact cache and response-time indicators.
+- Timing details are available in a collapsible section.
+- Citations use scan-friendly source cards with page labels, similarity scores, previews, and source links.
+- Loading and error states are more visible while keeping the interface lightweight.
 
 ## Knowledge Base Coverage
 
@@ -118,7 +149,9 @@ GROQ_API_KEY=
 GROQ_MODEL=llama-3.1-8b-instant
 TOP_K=3
 SIMILARITY_THRESHOLD=0.6
-MAX_CONTEXT_CHARS=5000
+CACHE_ENABLED=true
+GROQ_MAX_TOKENS=400
+MAX_CONTEXT_CHARS=3000
 ```
 
 Use the Supabase service role key only on the server or in local ingestion. Do not expose it as a `NEXT_PUBLIC_` variable.
@@ -167,11 +200,19 @@ Response:
   "refusal": false,
   "best_score": 0.82,
   "top_k": 3,
-  "similarity_threshold": 0.6
+  "similarity_threshold": 0.6,
+  "cache_hit": false,
+  "embedding_cache_hit": false,
+  "timings": {
+    "embedding_ms": 220,
+    "retrieval_ms": 180,
+    "generation_ms": 640,
+    "total_ms": 1040
+  }
 }
 ```
 
-The route embeds the question with Jina AI, calls Supabase `match_documents`, merges in exact keyword candidates for foundation ML terms, refuses unsupported questions, and sends only retrieved context to Groq.
+The route normalizes and hashes the question, checks `query_cache`, embeds uncached questions with Jina AI, checks/saves `embedding_cache`, calls Supabase `match_documents`, merges in exact keyword candidates for foundation ML terms, refuses unsupported questions, and sends only trimmed retrieved context to Groq.
 
 ## Vercel Deployment
 
@@ -195,7 +236,9 @@ GROQ_API_KEY=
 GROQ_MODEL=llama-3.1-8b-instant
 TOP_K=3
 SIMILARITY_THRESHOLD=0.6
-MAX_CONTEXT_CHARS=5000
+CACHE_ENABLED=true
+GROQ_MAX_TOKENS=400
+MAX_CONTEXT_CHARS=3000
 ```
 
 No Render backend is required. No local laptop, FAISS index, PyTorch model, or CUDA GPU is used at runtime.
@@ -215,6 +258,13 @@ Foundation ML verification after ingestion and while `npm run dev` is running:
 ```powershell
 cd frontend
 npm run test:foundation
+```
+
+Cache verification after running [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql) and while `npm run dev` is running:
+
+```powershell
+cd frontend
+npm run test:cache
 ```
 
 Local API smoke test after ingestion:
