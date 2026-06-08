@@ -32,18 +32,24 @@ type ChunkRecord = {
   category: string;
 };
 
+type FailedSource = {
+  title: string;
+  reason: string;
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = path.resolve(__dirname, "..");
 const MANIFEST_PATH = path.join(FRONTEND_DIR, "data", "source_manifest.json");
 const PDF_DIR = path.join(FRONTEND_DIR, "data", "raw_pdfs");
 const JINA_EMBEDDING_DIMENSIONS = 1024;
 
-config({ path: path.join(FRONTEND_DIR, ".env.local") });
-config();
+config({ path: path.join(FRONTEND_DIR, ".env.local"), quiet: true });
+config({ quiet: true });
 
 const CHUNK_SIZE_CHARS = Number(process.env.CHUNK_SIZE_CHARS ?? 4000);
 const CHUNK_OVERLAP_CHARS = Number(process.env.CHUNK_OVERLAP_CHARS ?? 800);
 const EMBEDDING_BATCH_SIZE = Number(process.env.EMBEDDING_BATCH_SIZE ?? 24);
+const EXISTING_HASH_BATCH_SIZE = Number(process.env.EXISTING_HASH_BATCH_SIZE ?? 100);
 const INSERT_BATCH_SIZE = Number(process.env.INSERT_BATCH_SIZE ?? 50);
 const EMBEDDING_DELAY_MS = Number(process.env.EMBEDDING_DELAY_MS ?? 500);
 
@@ -207,8 +213,8 @@ async function existingHashes(
   hashes: string[]
 ) {
   const found = new Set<string>();
-  for (let start = 0; start < hashes.length; start += 500) {
-    const batch = hashes.slice(start, start + 500);
+  for (let start = 0; start < hashes.length; start += EXISTING_HASH_BATCH_SIZE) {
+    const batch = hashes.slice(start, start + EXISTING_HASH_BATCH_SIZE);
     const { data, error } = await supabase
       .from("documents")
       .select("content_hash")
@@ -265,6 +271,15 @@ async function ingestChunks(chunks: ChunkRecord[]) {
         });
 
       if (error) {
+        if (error.message.includes("expected 1536 dimensions")) {
+          throw new Error(
+            [
+              "Supabase documents.embedding is still vector(1536).",
+              "Jina embeddings are 1024 dimensions.",
+              "Run frontend/supabase/reset_jina_schema.sql in the Supabase SQL editor, then rerun npm run ingest."
+            ].join(" ")
+          );
+        }
         throw new Error(error.message);
       }
     }
@@ -277,13 +292,33 @@ async function ingestChunks(chunks: ChunkRecord[]) {
 async function main() {
   const manifest = await readManifest();
   const allChunks: ChunkRecord[] = [];
+  const failedSources: FailedSource[] = [];
 
   for (const source of manifest) {
-    const pdfPath = await downloadPdf(source);
-    const pages = await extractPages(pdfPath, source);
-    const chunks = pages.flatMap(chunkPage);
-    allChunks.push(...chunks);
-    console.log(`${source.title}: ${pages.length} pages, ${chunks.length} chunks`);
+    try {
+      const pdfPath = await downloadPdf(source);
+      const pages = await extractPages(pdfPath, source);
+      const chunks = pages.flatMap(chunkPage);
+      allChunks.push(...chunks);
+      console.log(`${source.title}: ${pages.length} pages, ${chunks.length} chunks`);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Unknown error";
+      failedSources.push({ title: source.title, reason });
+      console.warn(`Skipped ${source.title}: ${reason}`);
+    }
+  }
+
+  if (failedSources.length > 0) {
+    console.warn(`Failed documents: ${failedSources.length}`);
+    failedSources.forEach((source) => {
+      console.warn(`- ${source.title}: ${source.reason}`);
+    });
+  } else {
+    console.log("Failed documents: 0");
+  }
+
+  if (allChunks.length === 0) {
+    throw new Error("No chunks were extracted from the source manifest.");
   }
 
   await ingestChunks(allChunks);

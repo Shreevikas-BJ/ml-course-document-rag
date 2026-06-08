@@ -80,6 +80,11 @@ function getSupabaseClient() {
   );
 }
 
+function normalizeJinaSimilarity(rawSimilarity: number) {
+  const normalized = (rawSimilarity + 1) / 2;
+  return Math.max(0, Math.min(1, normalized));
+}
+
 async function embedQuestion(question: string) {
   const provider = process.env.EMBEDDING_PROVIDER?.trim().toLowerCase() || "jina";
   if (provider !== "jina") {
@@ -119,7 +124,7 @@ async function retrieveDocuments(questionEmbedding: number[]) {
 
   const { data, error } = await supabase.rpc("match_documents", {
     query_embedding: questionEmbedding,
-    match_threshold: threshold,
+    match_threshold: 0,
     match_count: topK
   });
 
@@ -127,9 +132,12 @@ async function retrieveDocuments(questionEmbedding: number[]) {
     throw new Error(error.message);
   }
 
-  const rows = ((data ?? []) as MatchedDocument[]).filter(
-    (row) => Number(row.similarity) >= threshold
-  );
+  const rows = ((data ?? []) as MatchedDocument[])
+    .map((row) => ({
+      ...row,
+      similarity: normalizeJinaSimilarity(Number(row.similarity))
+    }))
+    .filter((row) => Number(row.similarity) >= threshold);
 
   return {
     chunks: rows.slice(0, topK),

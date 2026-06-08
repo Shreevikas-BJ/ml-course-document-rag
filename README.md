@@ -60,6 +60,7 @@ frontend/
 - `EMBEDDING_PROVIDER=jina`
 - `JINA_EMBEDDING_MODEL=jina-embeddings-v3`
 - Jina v3 embeddings are stored as `vector(1024)`
+- The API normalizes Jina cosine similarity into a `0` to `1` score before applying `SIMILARITY_THRESHOLD`.
 
 If no retrieved chunk has similarity `>= 0.6`, `/api/ask` returns:
 
@@ -83,7 +84,7 @@ match_documents(query_embedding vector(1024), match_threshold float, match_count
 
 It returns `id`, `content`, `source_title`, `source_url`, `page_start`, `page_end`, `category`, and `similarity`.
 
-If you previously created the Supabase table with OpenAI's `vector(1536)` dimension, recreate the `documents` table or run a migration before reingesting. Existing OpenAI embeddings cannot be mixed with Jina `vector(1024)` embeddings.
+If you previously created the Supabase table with OpenAI's `vector(1536)` dimension, recreate the `documents` table before reingesting. For an empty old table, run [frontend/supabase/reset_jina_schema.sql](frontend/supabase/reset_jina_schema.sql) in the Supabase SQL editor. Existing OpenAI embeddings cannot be mixed with Jina `vector(1024)` embeddings.
 
 ## Local Environment
 
@@ -212,7 +213,7 @@ Verify:
 - `top_k` is `3`.
 - `similarity_threshold` is `0.6`.
 - Citations include source title, page number, and similarity score.
-- Unsupported questions such as “Who won yesterday's NBA game?” return the refusal message.
+- Unsupported questions such as "Who won yesterday's NBA game?" return the refusal message.
 
 ## Future Improvements
 
