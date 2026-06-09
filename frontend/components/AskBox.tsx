@@ -34,7 +34,7 @@ export type AskResponse = {
   top_k: number;
   similarity_threshold: number;
   cache_hit?: boolean;
-  embedding_cache_hit?: boolean;
+  embedding_cache_hit?: boolean | "skipped";
   timings?: AskTimings;
 };
 
@@ -95,7 +95,6 @@ export function AskBox() {
           <span className="status-dot" aria-hidden="true" />
           <span>Grounded Q&A</span>
         </div>
-        <strong>TOP_K 3</strong>
       </div>
 
       <form className="ask-form" onSubmit={submit}>

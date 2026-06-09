@@ -12,10 +12,19 @@ type AnswerCardProps = {
   response: AskResponse;
 };
 
+function cacheLabel(value: AskResponse["embedding_cache_hit"]) {
+  if (value === "skipped") {
+    return "skipped";
+  }
+  return value ? "hit" : "miss";
+}
+
 export function AnswerCard({ response }: AnswerCardProps) {
   const timings = response.timings;
   const cacheHit = Boolean(response.cache_hit);
-  const embeddingCacheHit = Boolean(response.embedding_cache_hit);
+  const embeddingCacheLabel = cacheHit
+    ? "skipped"
+    : cacheLabel(response.embedding_cache_hit);
 
   return (
     <div className="answer-layout">
@@ -41,7 +50,7 @@ export function AnswerCard({ response }: AnswerCardProps) {
             ) : null}
             <span className={cacheHit ? "status-badge good" : "status-badge"}>
               <Database size={14} aria-hidden="true" />
-              {cacheHit ? "Cache hit" : "Fresh"}
+              {cacheHit ? "Query cache hit" : "Fresh answer"}
             </span>
           </div>
         </div>
@@ -68,14 +77,16 @@ export function AnswerCard({ response }: AnswerCardProps) {
               Timing details
             </summary>
             <div className="timing-grid">
-              <span>Embedding</span>
-              <strong>{timings.embedding_ms} ms</strong>
-              <span>Retrieval</span>
-              <strong>{timings.retrieval_ms} ms</strong>
-              <span>Generation</span>
-              <strong>{timings.generation_ms} ms</strong>
+              <span>Query cache</span>
+              <strong>{cacheHit ? "hit" : "miss"}</strong>
               <span>Embedding cache</span>
-              <strong>{embeddingCacheHit ? "hit" : "miss"}</strong>
+              <strong>{embeddingCacheLabel}</strong>
+              <span>Embedding</span>
+              <strong>{cacheHit ? "skipped" : `${timings.embedding_ms} ms`}</strong>
+              <span>Retrieval</span>
+              <strong>{cacheHit ? "skipped" : `${timings.retrieval_ms} ms`}</strong>
+              <span>Generation</span>
+              <strong>{cacheHit ? "skipped" : `${timings.generation_ms} ms`}</strong>
             </div>
           </details>
         ) : null}

@@ -44,6 +44,8 @@ type Timings = {
   total_ms: number;
 };
 
+type EmbeddingCacheState = boolean | "skipped";
+
 type AskPayload = {
   answer: string;
   citations: Citation[];
@@ -54,7 +56,7 @@ type AskPayload = {
   top_k: number;
   similarity_threshold: number;
   cache_hit: boolean;
-  embedding_cache_hit: boolean;
+  embedding_cache_hit: EmbeddingCacheState;
   timings: Timings;
 };
 
@@ -67,6 +69,18 @@ type CachedQueryRow = {
 
 type CachedEmbeddingRow = {
   embedding: string | number[] | null;
+};
+
+type FallbackQueryCacheValue = {
+  answer: string;
+  citations: Citation[];
+  retrieved_chunks: RetrievedChunk[];
+  refusal: boolean;
+};
+
+type FallbackEmbeddingCacheValue = {
+  embedding: number[];
+  normalized_question: string;
 };
 
 type JinaEmbeddingResponse = {
@@ -167,6 +181,29 @@ function jsonArray<T>(value: unknown): T[] {
   return [];
 }
 
+function cachedPayload(
+  row: CachedQueryRow | FallbackQueryCacheValue,
+  totalStart: number
+) {
+  const citations = jsonArray<Citation>(row.citations);
+  const retrievedChunks = jsonArray<RetrievedChunk>(row.retrieved_chunks);
+  const similarityScores = citations.map((citation) => Number(citation.similarity_score));
+
+  return {
+    answer: row.answer,
+    citations,
+    retrieved_chunks: retrievedChunks,
+    similarity_scores: similarityScores,
+    refusal: row.refusal,
+    best_score: similarityScores[0] ?? null,
+    top_k: numberEnv("TOP_K", 3),
+    similarity_threshold: numberEnv("SIMILARITY_THRESHOLD", 0.6),
+    cache_hit: true,
+    embedding_cache_hit: "skipped",
+    timings: zeroTimings(totalStart)
+  } satisfies AskPayload;
+}
+
 function normalizeJinaSimilarity(rawSimilarity: number) {
   const normalized = (rawSimilarity + 1) / 2;
   return Math.max(0, Math.min(1, normalized));
@@ -216,6 +253,24 @@ const STOP_WORDS = new Set([
   "the",
   "what"
 ]);
+
+const FALLBACK_CACHE_LIMIT = 200;
+const fallbackQueryCache = new Map<string, FallbackQueryCacheValue>();
+const fallbackEmbeddingCache = new Map<string, FallbackEmbeddingCacheValue>();
+
+function rememberBounded<T>(cache: Map<string, T>, key: string, value: T) {
+  if (cache.has(key)) {
+    cache.delete(key);
+  }
+  cache.set(key, value);
+
+  if (cache.size > FALLBACK_CACHE_LIMIT) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) {
+      cache.delete(oldestKey);
+    }
+  }
+}
 
 const TOPIC_PHRASES = [
   "linear regression",
@@ -361,30 +416,16 @@ async function readQueryCache(
 
   if (error) {
     console.warn(`Query cache skipped: ${error.message}`);
-    return null;
-  }
-  if (!data) {
-    return null;
+  } else if (data) {
+    return cachedPayload(data as CachedQueryRow, totalStart);
   }
 
-  const row = data as CachedQueryRow;
-  const citations = jsonArray<Citation>(row.citations);
-  const retrievedChunks = jsonArray<RetrievedChunk>(row.retrieved_chunks);
-  const similarityScores = citations.map((citation) => Number(citation.similarity_score));
+  const fallback = fallbackQueryCache.get(questionHash);
+  if (fallback) {
+    return cachedPayload(fallback, totalStart);
+  }
 
-  return {
-    answer: row.answer,
-    citations,
-    retrieved_chunks: retrievedChunks,
-    similarity_scores: similarityScores,
-    refusal: row.refusal,
-    best_score: similarityScores[0] ?? null,
-    top_k: numberEnv("TOP_K", 3),
-    similarity_threshold: numberEnv("SIMILARITY_THRESHOLD", 0.6),
-    cache_hit: true,
-    embedding_cache_hit: false,
-    timings: zeroTimings(totalStart)
-  } satisfies AskPayload;
+  return null;
 }
 
 async function saveQueryCache(
@@ -412,8 +453,17 @@ async function saveQueryCache(
     );
 
   if (error) {
-    console.warn(`Query cache save skipped: ${error.message}`);
+    console.warn(
+      `Query cache save failed; using warm runtime fallback: ${error.message}`
+    );
   }
+
+  rememberBounded(fallbackQueryCache, questionHash, {
+    answer: payload.answer,
+    citations: payload.citations,
+    retrieved_chunks: payload.retrieved_chunks,
+    refusal: payload.refusal
+  });
 }
 
 async function getQuestionEmbedding(
@@ -438,6 +488,18 @@ async function getQuestionEmbedding(
           embeddingCacheHit: true
         };
       }
+
+      console.warn(
+        `Embedding cache row ignored: expected ${JINA_EMBEDDING_DIMENSIONS} dimensions, got ${embedding.length}`
+      );
+    }
+
+    const fallback = fallbackEmbeddingCache.get(questionHash);
+    if (fallback?.embedding.length === JINA_EMBEDDING_DIMENSIONS) {
+      return {
+        embedding: fallback.embedding,
+        embeddingCacheHit: true
+      };
     }
   }
 
@@ -456,8 +518,15 @@ async function getQuestionEmbedding(
       );
 
     if (error) {
-      console.warn(`Embedding cache save skipped: ${error.message}`);
+      console.warn(
+        `Embedding cache save failed; using warm runtime fallback: ${error.message}`
+      );
     }
+
+    rememberBounded(fallbackEmbeddingCache, questionHash, {
+      embedding,
+      normalized_question: normalizedQuestion
+    });
   }
 
   return {

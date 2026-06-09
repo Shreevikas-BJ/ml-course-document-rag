@@ -64,6 +64,7 @@ frontend/
 - Jina v3 embeddings are stored as `vector(1024)`
 - The API normalizes Jina cosine similarity into a `0` to `1` score before applying `SIMILARITY_THRESHOLD`.
 - The API merges Supabase vector matches with a small exact lexical candidate set for foundation ML terms, then reranks candidates before returning `TOP_K=3`.
+- The frontend intentionally hides `TOP_K`; the backend still retrieves three chunks by default.
 
 If no retrieved chunk has similarity `>= 0.6`, `/api/ask` returns:
 
@@ -101,7 +102,7 @@ If the schema changes in the future, run the reset SQL only when you are ready t
 - `embedding_cache` stores normalized question hashes and Jina `vector(1024)` embeddings so repeated normalized questions avoid another Jina call.
 - `/api/ask` returns timing logs for embedding, retrieval, generation, and total request time.
 
-Apply the cache tables by running [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql) in the Supabase SQL editor. The first time a question is asked, the route calls Jina, Supabase vector search, and Groq. Repeating the same normalized question returns from `query_cache` immediately. If only the embedding is cached, the route skips Jina and still performs retrieval and generation.
+Apply the cache tables by running [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql) in the Supabase SQL editor. The first time a normalized question is asked, the route misses both caches, calls Jina, saves the embedding to `embedding_cache`, retrieves from Supabase, calls Groq, and saves the final answer to `query_cache`. Repeating the same normalized question returns from `query_cache` immediately with embedding, retrieval, and generation marked as skipped. If `query_cache` is bypassed or misses but `embedding_cache` contains the vector, the route skips Jina and still performs retrieval and generation.
 
 To verify cache behavior locally, run the app and then:
 
@@ -115,9 +116,12 @@ The second request for the same normalized question should return `cache_hit=tru
 ## Frontend UX Improvements
 
 - The Q&A surface uses improved spacing, responsive alignment, and clearer visual hierarchy.
+- The header includes the grounded-source subtitle: Stanford CS229, Cornell CS4780, ISLR, ESL, scikit-learn docs, and modern AI/RAG research papers.
+- A subtle LinkedIn feedback link points to [Shreevikas BJ](https://www.linkedin.com/in/shreevikasbj/).
 - Answers include compact cache and response-time indicators.
-- Timing details are available in a collapsible section.
-- Citations use scan-friendly source cards with page labels, similarity scores, previews, and source links.
+- Timing details are available in a collapsible section and show query-cache hits, embedding-cache hits, and skipped retrieval/generation when applicable.
+- Citations use scan-friendly source cards with clickable source titles, page labels, similarity scores, previews, and source links.
+- The UI hides `top_k` while the backend keeps `TOP_K=3`.
 - Loading and error states are more visible while keeping the interface lightweight.
 
 ## Knowledge Base Coverage
@@ -212,7 +216,7 @@ Response:
 }
 ```
 
-The route normalizes and hashes the question, checks `query_cache`, embeds uncached questions with Jina AI, checks/saves `embedding_cache`, calls Supabase `match_documents`, merges in exact keyword candidates for foundation ML terms, refuses unsupported questions, and sends only trimmed retrieved context to Groq.
+On a query-cache hit, `cache_hit` is `true`, `embedding_cache_hit` is `"skipped"`, and embedding/retrieval/generation timings are `0`. The route normalizes and hashes the question, checks `query_cache`, embeds uncached questions with Jina AI, checks/saves `embedding_cache`, calls Supabase `match_documents`, merges in exact keyword candidates for foundation ML terms, refuses unsupported questions, and sends only trimmed retrieved context to Groq.
 
 ## Vercel Deployment
 
@@ -266,6 +270,8 @@ Cache verification after running [frontend/supabase/performance_cache.sql](front
 cd frontend
 npm run test:cache
 ```
+
+The second request passes when it returns `cache_hit=true` or `embedding_cache_hit=true`, confirming repeated normalized questions do not call Jina again when a cache can satisfy the request.
 
 Local API smoke test after ingestion:
 

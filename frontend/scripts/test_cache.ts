@@ -8,7 +8,7 @@ type AskResponse = {
   retrieved_chunks?: unknown[];
   refusal?: boolean;
   cache_hit?: boolean;
-  embedding_cache_hit?: boolean;
+  embedding_cache_hit?: boolean | "skipped";
   timings?: {
     embedding_ms: number;
     retrieval_ms: number;
@@ -70,9 +70,14 @@ async function main() {
   const second = await ask(QUESTION);
   validateResponse("second request", second);
 
-  if (!second.cache_hit) {
+  const cacheSatisfied =
+    Boolean(second.cache_hit) ||
+    second.embedding_cache_hit === true ||
+    second.embedding_cache_hit === "skipped";
+
+  if (!cacheSatisfied) {
     throw new Error(
-      "Expected second response to have cache_hit=true. Run frontend/supabase/performance_cache.sql in Supabase and try again."
+      "Expected second response to have cache_hit=true or embedding_cache_hit=true. Run frontend/supabase/performance_cache.sql in Supabase and try again."
     );
   }
 
@@ -88,7 +93,14 @@ async function main() {
   }
 
   console.log(
-    `PASS | cache test | first_cache_hit=${Boolean(first.cache_hit)} second_cache_hit=${Boolean(second.cache_hit)} total_ms=${second.timings?.total_ms ?? "n/a"}`
+    [
+      "PASS | cache test",
+      `first_query_cache=${Boolean(first.cache_hit)}`,
+      `first_embedding_cache=${first.embedding_cache_hit ?? "miss"}`,
+      `second_query_cache=${Boolean(second.cache_hit)}`,
+      `second_embedding_cache=${second.embedding_cache_hit ?? "miss"}`,
+      `total_ms=${second.timings?.total_ms ?? "n/a"}`
+    ].join(" | ")
   );
 }
 

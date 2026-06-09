@@ -42,7 +42,20 @@ export function SourcesList({ citations, retrievedChunks }: SourcesListProps) {
             <details key={citation.chunk_id} className="source-item">
               <summary>
                 <div>
-                  <strong>{citation.source_title}</strong>
+                  {citation.source_url ? (
+                    <a
+                      className="source-title-link"
+                      href={citation.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <strong>{citation.source_title}</strong>
+                      <ExternalLink size={13} aria-hidden="true" />
+                    </a>
+                  ) : (
+                    <strong>{citation.source_title}</strong>
+                  )}
                   <span>{pageLabel(citation)}</span>
                 </div>
                 <b>
@@ -52,7 +65,12 @@ export function SourcesList({ citations, retrievedChunks }: SourcesListProps) {
               </summary>
               {chunk ? <p>{chunkPreview(chunk.text)}</p> : null}
               {citation.source_url ? (
-                <a href={citation.source_url} target="_blank" rel="noreferrer">
+                <a
+                  className="source-open-link"
+                  href={citation.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <ExternalLink size={14} aria-hidden="true" />
                   Source
                 </a>
