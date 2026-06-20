@@ -45,6 +45,7 @@ V4 is the final production architecture. It keeps the lightweight Vercel + Supab
 V4 adds:
 
 - `query_cache` for instantly returning repeated answers.
+- Semantic query-cache matching for safely reusing answers across high-confidence paraphrases.
 - `embedding_cache` to avoid repeated Jina calls for repeated normalized questions.
 - `MAX_CONTEXT_CHARS` to reduce the retrieved context sent to Groq.
 - `GROQ_MAX_TOKENS` to control answer length and token usage.
@@ -59,7 +60,7 @@ Final V4 architecture:
 ```text
 User -> Vercel Next.js UI -> /api/ask -> query_cache check
 If cache hit -> return cached answer
-If cache miss -> embedding_cache check -> Jina embedding if needed -> Supabase pgvector retrieval -> trimmed context -> Groq answer -> save to cache -> response with citations/timings
+If cache miss -> embedding_cache check -> Jina embedding if needed -> semantic query_cache search -> Supabase pgvector retrieval -> trimmed context -> Groq answer -> save to cache -> response with citations/timings
 ```
 
 ```mermaid
@@ -76,8 +77,11 @@ flowchart TD
     F -->|No| H[Jina Embeddings API]
     H --> I[Store Question Embedding in Supabase]
 
-    G --> J[Supabase pgvector Search]
-    I --> J
+    G --> Q{Semantic Cache Hit?}
+    I --> Q
+    Q -->|Yes| R[Return Semantically Cached Answer]
+    R --> Z
+    Q -->|No| J[Supabase pgvector Search]
 
     J --> K[Retrieve Top 3 Chunks]
     K --> L{Best Similarity >= 0.6?}
@@ -138,6 +142,7 @@ After V4:
 
 - Repeated same questions return directly from `query_cache`.
 - Repeated normalized questions can reuse `embedding_cache`.
+- High-confidence paraphrases can reuse a semantically matched cached answer.
 - Retrieved chunks are trimmed before being sent to Groq.
 - Groq output length is controlled with `GROQ_MAX_TOKENS`.
 - Timing logs show where latency is spent.
@@ -145,6 +150,9 @@ After V4:
 Key runtime settings:
 
 - `CACHE_ENABLED=true`
+- `SEMANTIC_CACHE_ENABLED=true`
+- `SEMANTIC_CACHE_THRESHOLD=0.90`
+- `SEMANTIC_CACHE_TOP_K=1`
 - `MAX_CONTEXT_CHARS=3000`
 - `GROQ_MAX_TOKENS=400`
 - `TOP_K=3`
@@ -155,7 +163,10 @@ Key runtime settings:
 Every `/api/ask` response includes metadata for debugging and UX display:
 
 - `cache_hit`
+- `cache_hit_type` (`none`, `exact`, or `semantic`)
 - `embedding_cache_hit`
+- `semantic_cache_score`
+- `matched_cached_question`
 - `embedding_ms`
 - `retrieval_ms`
 - `generation_ms`
@@ -164,6 +175,21 @@ Every `/api/ask` response includes metadata for debugging and UX display:
 - threshold-based refusal status
 
 If `query_cache` hits, the API returns the cached answer immediately and reports embedding, retrieval, and generation as skipped. If `query_cache` misses but `embedding_cache` hits, the API avoids another Jina call and continues to Supabase retrieval and Groq generation.
+
+## Semantic Cache + Session History
+
+Exact cache matching handles repeated questions with identical normalized text. Semantic cache matching handles paraphrases by comparing 1024-dimensional Jina question embeddings against cached-answer embeddings in Supabase.
+
+For example, these questions can reuse the same grounded answer when their cosine similarity is at least `SEMANTIC_CACHE_THRESHOLD`:
+
+```text
+Explain the bias-variance tradeoff.
+tell me the tradeoff of bias-variance.
+```
+
+The default semantic threshold is intentionally high (`0.90`) to reduce the risk of returning an answer cached for a related but meaningfully different question. Exact hits skip embedding, retrieval, and Groq. Semantic hits may embed the paraphrase, but skip document retrieval and Groq generation.
+
+The History tab stores completed Q&A entries under `rag_session_history` in browser `sessionStorage`. History clears when the browser session ends, can be cleared manually, and restores prior answers locally without calling `/api/ask` again.
 
 ## Knowledge Base Coverage
 
@@ -211,11 +237,12 @@ frontend/
   data/source_manifest.json
   scripts/
     ingest.ts
-    test_cache.ts
+    test_cache_behavior.ts
     test_foundation_questions.ts
   supabase/
     schema.sql
     performance_cache.sql
+    semantic_cache.sql
     reset_jina_schema.sql
   package.json
   .env.local.example
@@ -228,8 +255,9 @@ frontend/
 2. Open the Supabase SQL editor.
 3. Run [frontend/supabase/schema.sql](frontend/supabase/schema.sql).
 4. Run [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql).
-5. Confirm the `documents`, `query_cache`, and `embedding_cache` tables exist.
-6. Confirm the `match_documents` function exists.
+5. Run [frontend/supabase/semantic_cache.sql](frontend/supabase/semantic_cache.sql).
+6. Confirm the `documents`, `query_cache`, and `embedding_cache` tables exist.
+7. Confirm the `match_documents` and `match_query_cache` functions exist.
 
 The schema enables pgvector, creates `documents`, adds a vector index, and defines:
 
@@ -261,6 +289,9 @@ GROQ_MODEL=llama-3.1-8b-instant
 TOP_K=3
 SIMILARITY_THRESHOLD=0.6
 CACHE_ENABLED=true
+SEMANTIC_CACHE_ENABLED=true
+SEMANTIC_CACHE_THRESHOLD=0.90
+SEMANTIC_CACHE_TOP_K=1
 GROQ_MAX_TOKENS=400
 MAX_CONTEXT_CHARS=3000
 ```
@@ -311,6 +342,7 @@ Response shape:
   "top_k": 3,
   "similarity_threshold": 0.6,
   "cache_hit": false,
+  "cache_hit_type": "none",
   "embedding_cache_hit": false,
   "timings": {
     "embedding_ms": 220,
@@ -321,7 +353,7 @@ Response shape:
 }
 ```
 
-On a query-cache hit, `cache_hit` is `true`, `embedding_cache_hit` is `"skipped"`, and embedding/retrieval/generation timings are `0`.
+On an exact query-cache hit, `cache_hit_type` is `"exact"`, `embedding_cache_hit` is `"skipped"`, and embedding/retrieval/generation timings are `0`. On a semantic hit, `cache_hit_type` is `"semantic"`, `semantic_cache_score` and `matched_cached_question` are returned, and retrieval/generation timings are `0`.
 
 If no retrieved chunk has similarity `>= 0.6`, `/api/ask` refuses with:
 
@@ -339,6 +371,7 @@ Not enough information in the indexed AI/ML documents to answer confidently.
 - Clickable source titles and source links.
 - Page labels and similarity scores for citations.
 - Collapsible timing details.
+- Session-only History tab with click-to-restore and clear-history controls.
 - `TOP_K` stays in backend logic but is hidden from the visible UI.
 
 ## Vercel Deployment
@@ -366,6 +399,9 @@ GROQ_MODEL=llama-3.1-8b-instant
 TOP_K=3
 SIMILARITY_THRESHOLD=0.6
 CACHE_ENABLED=true
+SEMANTIC_CACHE_ENABLED=true
+SEMANTIC_CACHE_THRESHOLD=0.90
+SEMANTIC_CACHE_TOP_K=1
 GROQ_MAX_TOKENS=400
 MAX_CONTEXT_CHARS=3000
 ```
@@ -389,14 +425,14 @@ cd frontend
 npm run test:foundation
 ```
 
-Cache verification after running [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql) and while `npm run dev` is running:
+Exact and semantic cache verification after running [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql) and [frontend/supabase/semantic_cache.sql](frontend/supabase/semantic_cache.sql), while `npm run dev` is running:
 
 ```powershell
 cd frontend
 npm run test:cache
 ```
 
-The second cache-test request passes when it returns `cache_hit=true` or `embedding_cache_hit=true`, confirming repeated normalized questions do not call Jina again when a cache can satisfy the request.
+The cache test verifies an exact repeat returns `cache_hit_type="exact"` and a bias-variance paraphrase returns `cache_hit_type="semantic"` with a score at or above the configured semantic threshold.
 
 Local API smoke test after ingestion:
 
@@ -414,3 +450,7 @@ Invoke-RestMethod `
 - Add source/category filters.
 - Add an admin-only reingestion dashboard.
 - Add reranking before Groq generation.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

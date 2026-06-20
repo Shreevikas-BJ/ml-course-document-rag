@@ -22,9 +22,17 @@ function cacheLabel(value: AskResponse["embedding_cache_hit"]) {
 export function AnswerCard({ response }: AnswerCardProps) {
   const timings = response.timings;
   const cacheHit = Boolean(response.cache_hit);
-  const embeddingCacheLabel = cacheHit
+  const cacheHitType = response.cache_hit_type ?? (cacheHit ? "exact" : "none");
+  const exactCacheHit = cacheHitType === "exact";
+  const embeddingCacheLabel = exactCacheHit
     ? "skipped"
     : cacheLabel(response.embedding_cache_hit);
+  const cacheStatusLabel =
+    cacheHitType === "semantic"
+      ? "Semantic cache hit"
+      : cacheHitType === "exact"
+        ? "Exact cache hit"
+        : "Fresh answer";
 
   return (
     <div className="answer-layout">
@@ -50,7 +58,7 @@ export function AnswerCard({ response }: AnswerCardProps) {
             ) : null}
             <span className={cacheHit ? "status-badge good" : "status-badge"}>
               <Database size={14} aria-hidden="true" />
-              {cacheHit ? "Query cache hit" : "Fresh answer"}
+              {cacheStatusLabel}
             </span>
           </div>
         </div>
@@ -79,10 +87,26 @@ export function AnswerCard({ response }: AnswerCardProps) {
             <div className="timing-grid">
               <span>Query cache</span>
               <strong>{cacheHit ? "hit" : "miss"}</strong>
+              <span>Cache type</span>
+              <strong>{cacheHitType}</strong>
+              {response.semantic_cache_score === undefined ? null : (
+                <>
+                  <span>Semantic score</span>
+                  <strong>{response.semantic_cache_score.toFixed(3)}</strong>
+                </>
+              )}
+              {response.matched_cached_question ? (
+                <>
+                  <span>Matched question</span>
+                  <strong className="matched-question">
+                    {response.matched_cached_question}
+                  </strong>
+                </>
+              ) : null}
               <span>Embedding cache</span>
               <strong>{embeddingCacheLabel}</strong>
               <span>Embedding</span>
-              <strong>{cacheHit ? "skipped" : `${timings.embedding_ms} ms`}</strong>
+              <strong>{exactCacheHit ? "skipped" : `${timings.embedding_ms} ms`}</strong>
               <span>Retrieval</span>
               <strong>{cacheHit ? "skipped" : `${timings.retrieval_ms} ms`}</strong>
               <span>Generation</span>

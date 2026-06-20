@@ -45,6 +45,7 @@ type Timings = {
 };
 
 type EmbeddingCacheState = boolean | "skipped";
+type CacheHitType = "none" | "exact" | "semantic";
 
 type AskPayload = {
   answer: string;
@@ -56,15 +57,24 @@ type AskPayload = {
   top_k: number;
   similarity_threshold: number;
   cache_hit: boolean;
+  cache_hit_type: CacheHitType;
   embedding_cache_hit: EmbeddingCacheState;
+  semantic_cache_score?: number;
+  matched_cached_question?: string;
   timings: Timings;
 };
 
 type CachedQueryRow = {
+  normalized_question: string;
   answer: string;
   citations: unknown;
   retrieved_chunks: unknown;
   refusal: boolean;
+};
+
+type SemanticCachedQueryRow = CachedQueryRow & {
+  id: string;
+  similarity: number;
 };
 
 type CachedEmbeddingRow = {
@@ -72,6 +82,8 @@ type CachedEmbeddingRow = {
 };
 
 type FallbackQueryCacheValue = {
+  normalized_question: string;
+  question_embedding: number[];
   answer: string;
   citations: Citation[];
   retrieved_chunks: RetrievedChunk[];
@@ -144,15 +156,6 @@ function elapsedSince(start: number) {
   return Math.max(0, Math.round(performance.now() - start));
 }
 
-function zeroTimings(totalStart: number): Timings {
-  return {
-    embedding_ms: 0,
-    retrieval_ms: 0,
-    generation_ms: 0,
-    total_ms: elapsedSince(totalStart)
-  };
-}
-
 function normalizeQuestion(question: string) {
   return question
     .trim()
@@ -183,7 +186,14 @@ function jsonArray<T>(value: unknown): T[] {
 
 function cachedPayload(
   row: CachedQueryRow | FallbackQueryCacheValue,
-  totalStart: number
+  totalStart: number,
+  options: {
+    cacheHitType: Exclude<CacheHitType, "none">;
+    embeddingCacheHit: EmbeddingCacheState;
+    embeddingMs?: number;
+    semanticCacheScore?: number;
+    matchedCachedQuestion?: string;
+  }
 ) {
   const citations = jsonArray<Citation>(row.citations);
   const retrievedChunks = jsonArray<RetrievedChunk>(row.retrieved_chunks);
@@ -199,8 +209,20 @@ function cachedPayload(
     top_k: numberEnv("TOP_K", 3),
     similarity_threshold: numberEnv("SIMILARITY_THRESHOLD", 0.6),
     cache_hit: true,
-    embedding_cache_hit: "skipped",
-    timings: zeroTimings(totalStart)
+    cache_hit_type: options.cacheHitType,
+    embedding_cache_hit: options.embeddingCacheHit,
+    ...(options.semanticCacheScore === undefined
+      ? {}
+      : { semantic_cache_score: options.semanticCacheScore }),
+    ...(options.matchedCachedQuestion
+      ? { matched_cached_question: options.matchedCachedQuestion }
+      : {}),
+    timings: {
+      embedding_ms: options.embeddingMs ?? 0,
+      retrieval_ms: 0,
+      generation_ms: 0,
+      total_ms: elapsedSince(totalStart)
+    }
   } satisfies AskPayload;
 }
 
@@ -410,19 +432,25 @@ async function readQueryCache(
 
   const { data, error } = await supabase
     .from("query_cache")
-    .select("answer, citations, retrieved_chunks, refusal")
+    .select("normalized_question, answer, citations, retrieved_chunks, refusal")
     .eq("question_hash", questionHash)
     .maybeSingle();
 
   if (error) {
     console.warn(`Query cache skipped: ${error.message}`);
   } else if (data) {
-    return cachedPayload(data as CachedQueryRow, totalStart);
+    return cachedPayload(data as CachedQueryRow, totalStart, {
+      cacheHitType: "exact",
+      embeddingCacheHit: "skipped"
+    });
   }
 
   const fallback = fallbackQueryCache.get(questionHash);
   if (fallback) {
-    return cachedPayload(fallback, totalStart);
+    return cachedPayload(fallback, totalStart, {
+      cacheHitType: "exact",
+      embeddingCacheHit: "skipped"
+    });
   }
 
   return null;
@@ -432,6 +460,7 @@ async function saveQueryCache(
   supabase: ReturnType<typeof getSupabaseClient>,
   questionHash: string,
   normalizedQuestion: string,
+  questionEmbedding: number[],
   payload: AskPayload
 ) {
   if (!booleanEnv("CACHE_ENABLED", true)) {
@@ -444,10 +473,13 @@ async function saveQueryCache(
       {
         question_hash: questionHash,
         normalized_question: normalizedQuestion,
+        question_embedding: questionEmbedding,
+        cache_source: "rag",
         answer: payload.answer,
         citations: payload.citations,
         retrieved_chunks: payload.retrieved_chunks,
-        refusal: payload.refusal
+        refusal: payload.refusal,
+        updated_at: new Date().toISOString()
       },
       { onConflict: "question_hash" }
     );
@@ -459,11 +491,58 @@ async function saveQueryCache(
   }
 
   rememberBounded(fallbackQueryCache, questionHash, {
+    normalized_question: normalizedQuestion,
+    question_embedding: questionEmbedding,
     answer: payload.answer,
     citations: payload.citations,
     retrieved_chunks: payload.retrieved_chunks,
     refusal: payload.refusal
   });
+}
+
+async function readSemanticQueryCache(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  questionEmbedding: number[]
+) {
+  if (
+    !booleanEnv("CACHE_ENABLED", true) ||
+    !booleanEnv("SEMANTIC_CACHE_ENABLED", true)
+  ) {
+    return null;
+  }
+
+  const threshold = numberEnv("SEMANTIC_CACHE_THRESHOLD", 0.9);
+  const topK = Math.max(1, Math.floor(numberEnv("SEMANTIC_CACHE_TOP_K", 1)));
+  const { data, error } = await supabase.rpc("match_query_cache", {
+    query_embedding: questionEmbedding,
+    match_threshold: threshold,
+    match_count: topK
+  });
+
+  if (error) {
+    console.warn(`Semantic query cache skipped: ${error.message}`);
+  } else {
+    const row = ((data ?? []) as SemanticCachedQueryRow[])[0];
+    if (row && Number(row.similarity) >= threshold) {
+      return {
+        row,
+        similarity: Number(row.similarity),
+        normalizedQuestion: row.normalized_question
+      };
+    }
+  }
+
+  const fallbackMatches = [...fallbackQueryCache.values()]
+    .map((row) => ({
+      row,
+      similarity: cosineSimilarity(questionEmbedding, row.question_embedding),
+      normalizedQuestion: row.normalized_question
+    }))
+    .filter((match) => Number.isFinite(match.similarity))
+    .sort((left, right) => right.similarity - left.similarity)
+    .slice(0, topK);
+
+  return fallbackMatches.find((match) => match.similarity >= threshold) ?? null;
 }
 
 async function getQuestionEmbedding(
@@ -782,6 +861,23 @@ export async function POST(request: Request) {
     );
     const embeddingMs = elapsedSince(embeddingStart);
 
+    const semanticMatch = await readSemanticQueryCache(supabase, embedding);
+    if (semanticMatch) {
+      const semanticPayload = cachedPayload(
+        semanticMatch.row,
+        totalStart,
+        {
+          cacheHitType: "semantic",
+          embeddingCacheHit,
+          embeddingMs,
+          semanticCacheScore: semanticMatch.similarity,
+          matchedCachedQuestion: semanticMatch.normalizedQuestion
+        }
+      );
+      semanticPayload.timings.total_ms = elapsedSince(totalStart);
+      return NextResponse.json(semanticPayload);
+    }
+
     const retrievalStart = performance.now();
     const { chunks, topK, threshold } = await retrieveDocuments(
       supabase,
@@ -805,6 +901,7 @@ export async function POST(request: Request) {
         top_k: topK,
         similarity_threshold: threshold,
         cache_hit: false,
+        cache_hit_type: "none",
         embedding_cache_hit: embeddingCacheHit,
         timings: {
           embedding_ms: embeddingMs,
@@ -818,6 +915,7 @@ export async function POST(request: Request) {
         supabase,
         questionHash,
         normalizedQuestion,
+        embedding,
         refusalPayload
       );
 
@@ -840,6 +938,7 @@ export async function POST(request: Request) {
       top_k: topK,
       similarity_threshold: threshold,
       cache_hit: false,
+      cache_hit_type: "none",
       embedding_cache_hit: embeddingCacheHit,
       timings: {
         embedding_ms: embeddingMs,
@@ -849,7 +948,13 @@ export async function POST(request: Request) {
       }
     } satisfies AskPayload;
 
-    await saveQueryCache(supabase, questionHash, normalizedQuestion, payload);
+    await saveQueryCache(
+      supabase,
+      questionHash,
+      normalizedQuestion,
+      embedding,
+      payload
+    );
 
     payload.timings.total_ms = elapsedSince(totalStart);
     return NextResponse.json(payload);

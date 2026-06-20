@@ -8,7 +8,7 @@
     "start": "next start",
     "ingest": "tsx scripts/ingest.ts",
     "test:foundation": "tsx scripts/test_foundation_questions.ts",
-    "test:cache": "tsx scripts/test_cache.ts",
+    "test:cache": "tsx scripts/test_cache_behavior.ts",
     "lint": "eslint ."
   },
   "dependencies": {
