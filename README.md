@@ -158,6 +158,44 @@ Key runtime settings:
 - `TOP_K=3`
 - `SIMILARITY_THRESHOLD=0.6`
 
+### Semantic Cache Configuration
+
+The semantic cache helps the app reuse answers for questions that have the same meaning but different wording.
+
+Example:
+
+```text
+Explain the bias-variance tradeoff.
+tell me the tradeoff of bias-variance.
+```
+
+These questions are phrased differently, but they are semantically similar, so the app can reuse a cached answer when the similarity score is high enough.
+
+Environment variables:
+
+```env
+SEMANTIC_CACHE_ENABLED=true
+SEMANTIC_CACHE_THRESHOLD=0.90
+SEMANTIC_CACHE_TOP_K=1
+```
+
+- **`SEMANTIC_CACHE_ENABLED=true`** turns on semantic cache lookup. When an exact query-cache miss happens, the app uses the question embedding to search previously cached questions by meaning.
+- **`SEMANTIC_CACHE_THRESHOLD=0.90`** sets the minimum similarity score required to reuse a cached answer. A high value like `0.90` keeps the cache strict and reduces the risk of returning an answer for a loosely related question.
+- **`SEMANTIC_CACHE_TOP_K=1`** checks only the best matching cached question. This keeps semantic cache lookup fast and avoids comparing too many cached answers.
+
+Request paths:
+
+```text
+First time:
+Question -> Jina embedding -> Supabase retrieval -> Groq answer -> save to cache
+
+Repeated exact question:
+Question -> query_cache hit -> return cached answer
+
+Reworded but semantically similar question:
+Question -> embedding -> semantic cache match -> return cached answer
+```
+
 ## Performance and Observability
 
 Every `/api/ask` response includes metadata for debugging and UX display:
