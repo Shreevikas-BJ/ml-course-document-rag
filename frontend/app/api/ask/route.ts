@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -150,6 +150,42 @@ function getSupabaseClient() {
       }
     }
   );
+}
+
+function scheduleCacheCleanup(supabase: ReturnType<typeof getSupabaseClient>) {
+  if (!booleanEnv("CACHE_CLEANUP_ENABLED", true)) {
+    return;
+  }
+
+  const probability = Math.max(
+    0,
+    Math.min(1, numberEnv("CACHE_CLEANUP_PROBABILITY", 0.05))
+  );
+  if (Math.random() >= probability) {
+    return;
+  }
+
+  const retentionDays = Math.max(
+    1,
+    Math.floor(numberEnv("CACHE_RETENTION_DAYS", 15))
+  );
+  const maxRows = Math.max(1, Math.floor(numberEnv("CACHE_MAX_ROWS", 2000)));
+
+  after(async () => {
+    try {
+      const { error } = await supabase.rpc("cleanup_rag_cache", {
+        retention_days: retentionDays,
+        max_rows: maxRows
+      });
+
+      if (error) {
+        console.warn(`RAG cache cleanup skipped: ${error.message}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      console.warn(`RAG cache cleanup skipped: ${message}`);
+    }
+  });
 }
 
 function elapsedSince(start: number) {
@@ -847,6 +883,7 @@ export async function POST(request: Request) {
       normalizeQuestion(question) || question.toLowerCase().trim();
     const questionHash = sha256(normalizedQuestion);
     const supabase = getSupabaseClient();
+    scheduleCacheCleanup(supabase);
     const cachedAnswer = await readQueryCache(supabase, questionHash, totalStart);
 
     if (cachedAnswer) {

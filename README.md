@@ -196,6 +196,28 @@ Reworded but semantically similar question:
 Question -> embedding -> semantic cache match -> return cached answer
 ```
 
+### Cache Retention Policy
+
+`query_cache` and `embedding_cache` are persistent Supabase caches, so exact and semantic cache hits can continue across browser sessions. To prevent unbounded growth, cached Q&A entries and question embeddings are retained for 15 days and capped at the latest 2,000 cached questions.
+
+Cleanup affects only `query_cache` and `embedding_cache`. It does not delete rows from `documents`, source data, or the vector knowledge base.
+
+Automatic cleanup runs occasionally after `/api/ask` responses using `CACHE_CLEANUP_PROBABILITY`. It is best-effort and never delays or fails a user answer. Manual cleanup is available with:
+
+```bash
+cd frontend
+npm run cleanup:cache
+```
+
+Retention environment variables:
+
+- **`CACHE_RETENTION_DAYS=15`** deletes cache rows older than 15 days.
+- **`CACHE_MAX_ROWS=2000`** keeps only the latest 2,000 cached questions and their linked embeddings.
+- **`CACHE_CLEANUP_ENABLED=true`** enables occasional automatic cleanup from `/api/ask`.
+- **`CACHE_CLEANUP_PROBABILITY=0.05`** schedules cleanup on approximately 5% of requests instead of every request.
+
+Run [frontend/supabase/cache_retention.sql](frontend/supabase/cache_retention.sql) in the Supabase SQL Editor before enabling automatic or manual cleanup.
+
 ## Performance and Observability
 
 Every `/api/ask` response includes metadata for debugging and UX display:
@@ -274,6 +296,7 @@ frontend/
     SourcesList.tsx
   data/source_manifest.json
   scripts/
+    cleanup_cache.ts
     ingest.ts
     test_cache_behavior.ts
     test_foundation_questions.ts
@@ -281,6 +304,7 @@ frontend/
     schema.sql
     performance_cache.sql
     semantic_cache.sql
+    cache_retention.sql
     reset_jina_schema.sql
   package.json
   .env.local.example
@@ -294,8 +318,9 @@ frontend/
 3. Run [frontend/supabase/schema.sql](frontend/supabase/schema.sql).
 4. Run [frontend/supabase/performance_cache.sql](frontend/supabase/performance_cache.sql).
 5. Run [frontend/supabase/semantic_cache.sql](frontend/supabase/semantic_cache.sql).
-6. Confirm the `documents`, `query_cache`, and `embedding_cache` tables exist.
-7. Confirm the `match_documents` and `match_query_cache` functions exist.
+6. Run [frontend/supabase/cache_retention.sql](frontend/supabase/cache_retention.sql).
+7. Confirm the `documents`, `query_cache`, and `embedding_cache` tables exist.
+8. Confirm the `match_documents`, `match_query_cache`, and `cleanup_rag_cache` functions exist.
 
 The schema enables pgvector, creates `documents`, adds a vector index, and defines:
 
@@ -327,6 +352,10 @@ GROQ_MODEL=llama-3.1-8b-instant
 TOP_K=3
 SIMILARITY_THRESHOLD=0.6
 CACHE_ENABLED=true
+CACHE_RETENTION_DAYS=15
+CACHE_MAX_ROWS=2000
+CACHE_CLEANUP_ENABLED=true
+CACHE_CLEANUP_PROBABILITY=0.05
 SEMANTIC_CACHE_ENABLED=true
 SEMANTIC_CACHE_THRESHOLD=0.90
 SEMANTIC_CACHE_TOP_K=1
@@ -437,6 +466,10 @@ GROQ_MODEL=llama-3.1-8b-instant
 TOP_K=3
 SIMILARITY_THRESHOLD=0.6
 CACHE_ENABLED=true
+CACHE_RETENTION_DAYS=15
+CACHE_MAX_ROWS=2000
+CACHE_CLEANUP_ENABLED=true
+CACHE_CLEANUP_PROBABILITY=0.05
 SEMANTIC_CACHE_ENABLED=true
 SEMANTIC_CACHE_THRESHOLD=0.90
 SEMANTIC_CACHE_TOP_K=1
@@ -471,6 +504,13 @@ npm run test:cache
 ```
 
 The cache test verifies an exact repeat returns `cache_hit_type="exact"` and a bias-variance paraphrase returns `cache_hit_type="semantic"` with a score at or above the configured semantic threshold.
+
+Manual cache-retention cleanup after running the SQL migration:
+
+```powershell
+cd frontend
+npm run cleanup:cache
+```
 
 Local API smoke test after ingestion:
 

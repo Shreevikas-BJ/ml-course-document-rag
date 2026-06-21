@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "ingest": "tsx scripts/ingest.ts",
+    "cleanup:cache": "tsx scripts/cleanup_cache.ts",
     "test:foundation": "tsx scripts/test_foundation_questions.ts",
     "test:cache": "tsx scripts/test_cache_behavior.ts",
     "lint": "eslint ."
